@@ -191,23 +191,25 @@ export class WebSocketGatewayService
 
   @SubscribeMessage(WsEvents.CHAT_READ)
   async handleChatRead(
-    @MessageBody() data: { roomId: string },
+    @MessageBody() data: { roomId: string; lastReadMessageId?: string },
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
     const user = client.data.user;
     if (!user) return;
 
-    const { roomId } = data;
+    const { roomId, lastReadMessageId } = data;
     if (!roomId) return;
 
     try {
-      const { readAt, senderIds } = await this.messages.markRead(roomId, user.sub);
+      const { readAt, senderIds, lastReadMessageId: resolvedId } =
+        await this.messages.markRead(roomId, user.sub, lastReadMessageId);
 
-      // 방 전체에 읽음 브로드캐스트 (누가, 언제 읽었는지)
+      // 방 전체에 읽음 브로드캐스트 (누가, 어느 메시지까지 읽었는지)
       this.server.to(ROOM_PREFIX + roomId).emit(WsEvents.CHAT_READ, {
         roomId,
         userId: user.sub,
         readAt: readAt.toISOString(),
+        lastReadMessageId: resolvedId,
       });
 
       // 발신자들 개인 소켓에도 전달 (다른 기기 탭 등 대비)
@@ -218,11 +220,14 @@ export class WebSocketGatewayService
             readBy: user.sub,
             status: 'read',
             readAt: readAt.toISOString(),
+            lastReadMessageId: resolvedId,
           });
         }
       }
 
-      this.logger.debug(`chat.read userId=${user.sub} roomId=${roomId} msgs=${senderIds.length}`);
+      this.logger.debug(
+        `chat.read userId=${user.sub} roomId=${roomId} lastId=${resolvedId ?? 'all'} msgs=${senderIds.length}`,
+      );
     } catch (err: any) {
       this.logger.warn(`chat.read 실패: ${err?.message}`);
     }
