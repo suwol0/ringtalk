@@ -27,6 +27,12 @@ class _MainShellState extends ConsumerState<MainShell> {
     Future.microtask(() => ref.read(socketServiceProvider).connect());
   }
 
+  @override
+  void dispose() {
+    ref.read(socketServiceProvider).disconnect();
+    super.dispose();
+  }
+
   int _currentIndex(BuildContext context) {
     final location = GoRouterState.of(context).matchedLocation;
     final idx = _tabs.indexWhere((t) => location.startsWith(t.path));
