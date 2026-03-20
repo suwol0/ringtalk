@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/models/models.dart';
@@ -12,16 +13,16 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/responsive.dart';
 import '../../../../core/utils/utils.dart';
 
-class OtpScreen extends StatefulWidget {
+class OtpScreen extends ConsumerStatefulWidget {
   final String phone;
   final String deviceId;
   const OtpScreen({super.key, required this.phone, required this.deviceId});
 
   @override
-  State<OtpScreen> createState() => _OtpScreenState();
+  ConsumerState<OtpScreen> createState() => _OtpScreenState();
 }
 
-class _OtpScreenState extends State<OtpScreen> {
+class _OtpScreenState extends ConsumerState<OtpScreen> {
   static const _otpLength = AppConstants.otpLength;
   static const _expireSec = AppConstants.otpExpiresInSeconds;
 
@@ -119,6 +120,9 @@ class _OtpScreenState extends State<OtpScreen> {
       if (tokens.userId != null) {
         await AuthStorage.saveUserId(tokens.userId!);
       }
+
+      // 토큰 저장 후 인증 상태 강제 갱신 → 라우터 redirect가 올바르게 평가되도록
+      ref.invalidate(isAuthenticatedProvider);
 
       if (mounted) {
         if (tokens.isNewUser) {
