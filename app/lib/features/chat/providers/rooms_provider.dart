@@ -57,6 +57,26 @@ class RoomsNotifier extends StateNotifier<RoomsState> {
     }
   }
 
+  /// 채팅방 진입 시 unreadCount 즉시 0으로 초기화 (낙관적 업데이트)
+  void markRoomAsRead(String roomId) {
+    state = state.copyWith(
+      rooms: state.rooms.map((r) {
+        if (r.id != roomId) return r;
+        return ChatRoom(
+          id: r.id,
+          type: r.type,
+          name: r.name,
+          profileImageUrl: r.profileImageUrl,
+          participants: r.participants,
+          lastMessage: r.lastMessage,
+          unreadCount: 0,
+          createdAt: r.createdAt,
+          updatedAt: r.updatedAt,
+        );
+      }).toList(),
+    );
+  }
+
   /// 1:1 방 생성/조회 후 반환
   Future<ChatRoom?> getOrCreateDirectRoom(String participantId) async {
     try {
