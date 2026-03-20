@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_constants.dart';
@@ -39,6 +40,9 @@ class RoomsNotifier extends StateNotifier<RoomsState> {
   final Ref _ref;
   void Function(dynamic)? _messageNewHandler;
 
+  /// 소켓 연결 대기 콜백 (race condition 방지)
+  VoidCallback? _onConnectRetry;
+
   RoomsNotifier(this._ref) : super(const RoomsState()) {
     _subscribeToSocket();
   }
@@ -46,8 +50,20 @@ class RoomsNotifier extends StateNotifier<RoomsState> {
   // ─── 소켓 구독 (채팅 목록 실시간 업데이트) ───────────────────
 
   void _subscribeToSocket() {
-    final socket = _ref.read(socketServiceProvider).socket;
-    if (socket == null) return;
+    final socketService = _ref.read(socketServiceProvider);
+    final socket = socketService.socket;
+
+    // 소켓 미연결 시 onConnect 콜백으로 재시도
+    if (socket == null) {
+      _onConnectRetry = () {
+        if (!mounted) return;
+        socketService.removeOnConnectCallback(_onConnectRetry!);
+        _onConnectRetry = null;
+        _subscribeToSocket();
+      };
+      socketService.addOnConnectCallback(_onConnectRetry!);
+      return;
+    }
 
     _messageNewHandler = (data) {
       if (data is! Map) return;
@@ -145,7 +161,12 @@ class RoomsNotifier extends StateNotifier<RoomsState> {
 
   @override
   void dispose() {
-    final socket = _ref.read(socketServiceProvider).socket;
+    final socketService = _ref.read(socketServiceProvider);
+    if (_onConnectRetry != null) {
+      socketService.removeOnConnectCallback(_onConnectRetry!);
+      _onConnectRetry = null;
+    }
+    final socket = socketService.socket;
     if (socket != null && _messageNewHandler != null) {
       socket.off(WsEvents.messageNew, _messageNewHandler!);
     }
