@@ -89,6 +89,7 @@ abstract class WsEvents {
   static const messageDelivered = 'message:delivered';
   static const messageDelete = 'message:delete';
   static const messageDeleted = 'message:deleted';
+  static const chatRead = 'chat.read';
 
   // 방
   static const roomJoin = 'room:join';
