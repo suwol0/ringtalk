@@ -4,7 +4,7 @@
   <p><strong>마음이 '링'하는 순간, 링톡</strong></p>
   <p>카카오톡을 겨냥한 메신저 앱 — <strong>모바일(iOS/Android) + PC(Windows/macOS)</strong> 지원</p>
 
-![CI](https://github.com/zyansuh/ringtalk/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/suwol0/ringtalk/actions/workflows/ci.yml/badge.svg)
 ![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter)
 ![NestJS](https://img.shields.io/badge/NestJS-10-E0234E?logo=nestjs)
 ![License](https://img.shields.io/badge/license-MIT-purple)
@@ -204,23 +204,17 @@ flutter run -d windows     # Windows 네이티브
 | `go_router`              | 라우팅 (ShellRoute 탭 네비게이션) |
 | `flutter_riverpod`       | 상태 관리                         |
 | `dio`                    | HTTP 클라이언트 + 자동 토큰 갱신  |
-| `web_socket_channel`     | WebSocket                         |
-| `socket_io_client`       | Socket.IO 실시간 채팅 (3주차)     |
+| `socket_io_client`       | Socket.IO 실시간 채팅             |
 | `flutter_secure_storage` | 토큰·이용약관 동의 보안 저장      |
-| `reactive_forms`         | 폼 유효성 검사                    |
-| `cached_network_image`   | 이미지 캐싱                       |
+| `cached_network_image`   | 프로필·미디어 이미지 캐싱         |
 | `shimmer`                | 스켈레톤 로딩 UI                  |
 | `uuid`                   | 클라이언트 임시 메시지 ID         |
 | `crypto`                 | 전화번호 SHA-256 해시             |
-| `intl`                   | 날짜/시간 포맷                    |
 | `flutter_contacts`       | 기기 연락처 동기화                |
 | `permission_handler`     | 권한 요청 (연락처/카메라/알림)    |
-| `image_picker`           | 이미지 첨부 (4주차)               |
-| `file_picker`            | 파일 첨부 (4주차)                 |
+| `image_picker`           | 이미지 첨부 (4주차 예정)          |
+| `file_picker`            | 파일 첨부 (4주차 예정)            |
 | `flutter_dotenv`         | 환경변수 (.env)                   |
-| `flutter_svg`            | SVG 아이콘                        |
-| `lottie`                 | 애니메이션                        |
-| `flutter_slidable`       | 채팅 아이템 스와이프 액션         |
 
 ## 네이티브 설정 (필수)
 
@@ -250,14 +244,6 @@ flutter run -d windows     # Windows 네이티브
 
 ```bash
 cd server
-
-# 보안 헤더
-pnpm add helmet
-pnpm add compression
-pnpm add @types/compression -D
-
-# API 문서 (개발 편의)
-pnpm add @nestjs/swagger
 
 # 파일 업로드 (4주차)
 pnpm add @aws-sdk/client-s3 @aws-sdk/s3-request-presigner
@@ -383,14 +369,14 @@ PR / push → main, develop
 - [x] **1:1 채팅방 생성** — `POST /chats/direct` (participants 유니크, 친구 관계 검증)
 - [x] **채팅 목록** — `GET /chats` (최근 메시지, 안 읽음 뱃지, roomId 기반 화면)
 
-### 3주차: 실시간 메시징 + ACK/읽음
+### ✅ 3주차: 실시간 메시징 + ACK/읽음
 
 - [x] **Socket.IO 게이트웨이 + JWT 인증** — handshake 시 `auth.accessToken` 검증, 세션 확인
 - [x] **Flutter WS 인증** — SocketService, MainShell connect / SettingsScreen disconnect
 - [x] **`message:send` / `message:new` / `message:status` 이벤트** — DB 저장, room 브로드캐스트, 낙관적 업데이트
 - [x] **`clientMessageId` 낙관적 업데이트** — message:new에 clientMessageId 포함, 발신자 중복 방지
-- [ ] 읽음 처리 (`last_read_message_id`)
-- [ ] 전송 실패 재시도 UX
+- [x] **읽음 처리 (`lastReadMessageId`)** — `chat.read` 이벤트, `MessageReadReceipt` DB 저장, `lastReadAt` 갱신, room 브로드캐스트, 채팅 목록 unreadCount 즉시 초기화
+- [x] **전송 실패 재시도 UX** — 10초 타임아웃 → `failed` 상태, 말풍선 빨간 테두리 + 재전송 버튼
 
 ### 4주차: 첨부 파일 업로드 (Pre-signed)
 
@@ -510,26 +496,34 @@ socket.on('authenticated', (data) => console.log('인증 완료:', data.userId))
 
 ### 클라 → 서버
 
-| 이벤트          | 페이로드                                           | 설명                |
-| --------------- | -------------------------------------------------- | ------------------- |
-| (연결 시)       | `auth: { accessToken }`                            | WS 인증 (handshake) |
-| `room:join`     | `{ roomId }`                                       | 채팅방 입장         |
-| `room:leave`    | `{ roomId }`                                       | 채팅방 퇴장         |
-| `message:send`  | `{ roomId, clientMessageId, content, type? }`      | 메시지 전송         |
-| `chat.read`     | `{ chatId, lastReadMessageId }`                    | 읽음 처리           |
-| `presence.ping` | `{ ts }`                                           | 온라인 유지         |
+| 이벤트             | 페이로드                                                    | 설명                |
+| ------------------ | ----------------------------------------------------------- | ------------------- |
+| (연결 시)          | `auth: { accessToken }`                                     | WS 인증 (handshake) |
+| `room:join`        | `{ roomId }`                                                | 채팅방 입장         |
+| `room:leave`       | `{ roomId }`                                                | 채팅방 퇴장         |
+| `message:send`     | `{ roomId, clientMessageId, content, type? }`               | 메시지 전송         |
+| `message:delivered`| `{ messageId, roomId }`                                     | 수신 확인           |
+| `chat.read`        | `{ roomId, lastReadMessageId? }`                            | 읽음 처리           |
 
 ### 서버 → 클라
 
-| 이벤트             | 페이로드                                                     | 설명                  |
-| ------------------ | ------------------------------------------------------------ | --------------------- |
-| `authenticated`    | `{ userId }`                                                 | 인증 완료             |
-| `message:new`      | `{ message, clientMessageId? }`                              | 새 메시지 (room 전체 브로드캐스트) |
-| `message:status`   | `{ clientMessageId, status, messageId }`                      | `sent` (발신자에게만) |
-| `chat.read_update` | `{ chatId, userId, lastReadMessageId }`                       | 읽음 동기화           |
-| `error`            | `{ code, message }`                                          | 오류                  |
+| 이벤트           | 페이로드                                                              | 설명                         |
+| ---------------- | --------------------------------------------------------------------- | ---------------------------- |
+| `authenticated`  | `{ userId }`                                                          | 인증 완료                    |
+| `message:new`    | `{ message, clientMessageId? }`                                       | 새 메시지 (room 전체 브로드) |
+| `message:status` | `{ clientMessageId, status, messageId }` / `{ status:'read', readBy, lastReadMessageId }` | ACK / 읽음 알림 |
+| `chat.read`      | `{ roomId, userId, readAt, lastReadMessageId? }`                      | 읽음 동기화 (room 전체 브로드) |
+| `error`          | `{ code, message }`                                                   | 오류                         |
+
+**메시지 상태 흐름**
+
+```
+sending → (socket emit) → sent → delivered → read
+    └─ 10초 타임아웃 → failed → (재시도 버튼) → sending
+```
 
 > `clientMessageId(uuid)` — 낙관적 업데이트용. `message:new`에 포함되어 발신자 중복 방지.
+> `lastReadMessageId` — 해당 메시지까지 읽음 처리. 없으면 방 전체 읽음.
 
 ---
 
