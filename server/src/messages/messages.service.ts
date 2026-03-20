@@ -148,6 +148,56 @@ export class MessagesService {
     };
   }
 
+  /**
+   * 읽음 처리 (chat.read 이벤트)
+   * - RoomParticipant.lastReadAt 갱신
+   * - 내가 읽지 않은 메시지에 MessageReadReceipt upsert
+   * - 읽힌 메시지들의 senderId 목록 반환 (발신자에게 알림 전송용)
+   */
+  async markRead(roomId: string, userId: string): Promise<{ readAt: Date; senderIds: string[] }> {
+    const participation = await this.prisma.roomParticipant.findFirst({
+      where: { roomId, userId, leftAt: null },
+    });
+    if (!participation) {
+      throw new ForbiddenException({
+        code: ErrorCode.NOT_ROOM_MEMBER,
+        message: '채팅방에 참여하고 있지 않습니다.',
+      });
+    }
+
+    const readAt = new Date();
+
+    // lastReadAt 갱신
+    await this.prisma.roomParticipant.update({
+      where: { roomId_userId: { roomId, userId } },
+      data: { lastReadAt: readAt },
+    });
+
+    // 내가 보내지 않은 메시지 중 아직 readReceipt가 없는 것들 조회
+    const unreadMessages = await this.prisma.message.findMany({
+      where: {
+        roomId,
+        senderId: { not: userId },
+        readReceipts: { none: { userId } },
+      },
+      select: { id: true, senderId: true },
+    });
+
+    if (unreadMessages.length > 0) {
+      await this.prisma.messageReadReceipt.createMany({
+        data: unreadMessages.map((m) => ({
+          messageId: m.id,
+          userId,
+          readAt,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    const senderIds = [...new Set(unreadMessages.map((m) => m.senderId))];
+    return { readAt, senderIds };
+  }
+
   private _formatMessage(msg: any) {
     return {
       id: msg.id,
