@@ -206,6 +206,10 @@ export class AuthService {
   // ─── 내부 헬퍼 ─────────────────────────────────────────────────────────────
 
   private generateOtp(): string {
+    const mockCode = this.config.get('OTP_MOCK_CODE');
+    if (this.config.get('OTP_MOCK') === 'true' && mockCode) {
+      return mockCode;
+    }
     return Math.floor(100000 + Math.random() * 900000).toString();
   }
 
