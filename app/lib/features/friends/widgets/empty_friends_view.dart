@@ -23,38 +23,58 @@ class EmptyFriendsView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              hasSynced
-                  ? Icons.people_outline_rounded
-                  : Icons.contacts_rounded,
-              size: 64,
-              color: AppColors.textDisabled,
+            Container(
+              width: 88,
+              height: 88,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.primarySurface,
+              ),
+              child: Icon(
+                hasSynced
+                    ? Icons.people_outline_rounded
+                    : Icons.contacts_rounded,
+                size: 44,
+                color: AppColors.primary,
+              ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             Text(
               hasSynced ? '링톡을 사용 중인 친구가 없어요' : '연락처를 동기화해 보세요',
-              style: Theme.of(context).textTheme.titleLarge,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Text(
               hasSynced
                   ? '친구에게 링톡을 추천해 보세요!'
                   : '연락처에서 링톡을 사용하는\n친구를 자동으로 찾아드려요.',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: AppColors.textSecondary),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textSecondary,
+                    height: 1.6,
+                  ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: 32),
             if (!hasSynced)
               ElevatedButton.icon(
                 onPressed: isSyncing ? null : onSync,
-                icon: const Icon(Icons.sync_rounded),
-                label: const Text('연락처 동기화'),
+                icon: isSyncing
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Icon(Icons.sync_rounded),
+                label: Text(isSyncing ? '동기화 중...' : '연락처 동기화'),
                 style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(200, 48),
+                  minimumSize: const Size(200, 50),
                 ),
               ),
           ],
