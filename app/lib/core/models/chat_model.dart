@@ -147,6 +147,7 @@ class Message {
   Message copyWith({
     String? id,
     MessageStatus? status,
+    List<MessageReadReceipt>? readBy,
     String? clientTempId,
   }) =>
       Message(
@@ -157,7 +158,7 @@ class Message {
         content: content,
         mediaUrl: mediaUrl,
         status: status ?? this.status,
-        readBy: readBy,
+        readBy: readBy ?? this.readBy,
         replyToId: replyToId,
         isDeleted: isDeleted,
         deletedFor: deletedFor,
@@ -226,6 +227,21 @@ class WsMessageStatus {
         clientMessageId: json['clientMessageId'] as String,
         status: MessageStatus.values.byName(json['status'] as String),
         messageId: json['messageId'] as String?,
+      );
+}
+
+/// chat.read 이벤트 페이로드
+class WsChatRead {
+  final String roomId;
+  final String userId;
+  final DateTime readAt;
+
+  WsChatRead({required this.roomId, required this.userId, required this.readAt});
+
+  factory WsChatRead.fromJson(Map<String, dynamic> json) => WsChatRead(
+        roomId: json['roomId'] as String,
+        userId: json['userId'] as String,
+        readAt: DateTime.parse(json['readAt'] as String),
       );
 }
 
