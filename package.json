@@ -9,7 +9,10 @@
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "server": "turbo run dev --filter=@ringtalk/server",
-    "app": "cd apps/app && flutter run"
+    "app": "cd app && flutter run",
+    "app:android:clean": "cd app/android && ./gradlew clean",
+    "app:android:build": "cd app/android && ./gradlew build",
+    "app:android:assembleDebug": "cd app/android && ./gradlew assembleDebug"
   },
   "devDependencies": {
     "turbo": "^2.0.0",

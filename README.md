@@ -4,7 +4,7 @@
   <p><strong>마음이 '링'하는 순간, 링톡</strong></p>
   <p>카카오톡을 겨냥한 메신저 앱 — <strong>모바일(iOS/Android) + PC(Windows/macOS)</strong> 지원</p>
 
-![CI](https://github.com/zyansuh/ringtalk/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/suwol0/ringtalk/actions/workflows/ci.yml/badge.svg)
 ![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter)
 ![NestJS](https://img.shields.io/badge/NestJS-10-E0234E?logo=nestjs)
 ![License](https://img.shields.io/badge/license-MIT-purple)
@@ -29,6 +29,33 @@
 
 ---
 
+## ⚠️ 명령어 실행 위치 (중요)
+
+**`messenger`는 모노레포 루트입니다.** `android/` 폴더가 루트에 없습니다.
+
+| 목적 | 올바른 경로 | 잘못된 예 |
+|------|-------------|-----------|
+| Android (gradlew) | `app/android/` | ~~`android/`~~ (없음) |
+| Flutter 앱 | `app/` | ~~루트~~ |
+| NestJS 서버 | `server/` | ~~루트~~ |
+
+```bash
+# ❌ 잘못됨 (루트에서)
+cd android          # → cd: no such file or directory
+./gradlew clean    # → zsh: no such file or directory
+
+# ✅ 올바름
+cd app/android
+./gradlew clean
+
+# 또는 루트에서 한 줄로
+cd app/android && ./gradlew clean
+```
+
+루트 `package.json`에 편의 스크립트가 있습니다: `pnpm app:android:clean`, `pnpm app:android:build` 등.
+
+---
+
 ## 디렉토리 구조
 
 ```
@@ -36,38 +63,36 @@ ringtalk/
 ├── .github/
 │   └── workflows/
 │       └── ci.yml          # GitHub Actions CI
-├── apps/
-│   ├── app/                # Flutter — iOS / Android / Windows / macOS / Web
-│   │   ├── lib/
-│   │   │   ├── core/
-│   │   │   │   ├── constants/   (앱 상수, API 엔드포인트, WS 이벤트)
-│   │   │   │   ├── models/      (Auth, User, Chat, Api Dart 모델)
-│   │   │   │   ├── network/     (Dio HTTP, Socket.IO + access token 인증)
-│   │   │   │   ├── router/      (go_router, 인증 리다이렉트)
-│   │   │   │   ├── storage/     (flutter_secure_storage)
-│   │   │   │   ├── theme/       (AppColors, AppColorsDark, AppTheme)
-│   │   │   │   └── utils/       (phone_utils, contact_hash_utils, date_utils)
-│   │   │   ├── features/
-│   │   │   │   ├── auth/        (Welcome → Phone → OTP → ProfileSetup)
-│   │   │   │   ├── chat/        (채팅 목록, RoomsRepository, roomId 기반 화면)
-│   │   │   │   ├── contacts/    (연락처 동기화, data/contacts_repository)
-│   │   │   │   ├── friends/     (친구 목록, data/friends_repository)
-│   │   │   │   └── settings/    (설정, 로그아웃)
-│   │   │   └── shared/widgets/  (MainShell 탭 네비게이션)
-│   │   └── pubspec.yaml
-│   └── server/             # NestJS API 서버
-│       ├── src/
-│       │   ├── auth/            (OTP, JWT, Passport 전략)
-│       │   ├── users/           (프로필, 친구, 차단)
-│       │   ├── contacts/       (연락처 동기화, syncContacts)
-│       │   ├── chats/           (GET /chats, POST /chats/direct)
-│       │   ├── rooms/           (RoomsService, CreateDirectRoomDto)
-│       │   ├── websocket/       (Socket.IO Gateway, JWT 인증)
-│       │   └── common/          (Prisma, Redis, Guards, Filters)
-│       └── prisma/
-│           └── schema.prisma    (9개 모델)
-├── packages/
-│   └── shared-server/      # 서버 전용 TypeScript 공통 타입/상수/유틸
+├── app/                    # Flutter — iOS / Android / Windows / macOS / Web
+│   ├── lib/
+│   │   ├── core/
+│   │   │   ├── constants/   (앱 상수, API 엔드포인트, WS 이벤트)
+│   │   │   ├── models/      (Auth, User, Chat, Api Dart 모델)
+│   │   │   ├── network/     (Dio HTTP, Socket.IO + access token 인증)
+│   │   │   ├── router/      (go_router, 인증 리다이렉트)
+│   │   │   ├── storage/     (flutter_secure_storage)
+│   │   │   ├── theme/       (AppColors, AppColorsDark, AppTheme)
+│   │   │   └── utils/       (phone_utils, contact_hash_utils, date_utils)
+│   │   ├── features/
+│   │   │   ├── auth/        (screens/, widgets/)
+│   │   │   ├── chat/        (data/, providers/, screens/, widgets/)
+│   │   │   ├── contacts/    (연락처 동기화)
+│   │   │   ├── friends/     (친구 목록)
+│   │   │   └── settings/    (설정)
+│   │   └── shared/widgets/  (MainShell 탭 네비게이션)
+│   └── pubspec.yaml
+├── server/                 # NestJS API 서버
+│   ├── src/
+│   │   ├── auth/            (OTP, JWT, Passport 전략)
+│   │   ├── users/           (프로필, 친구, 차단)
+│   │   ├── contacts/       (연락처 동기화, syncContacts)
+│   │   ├── chats/           (GET /chats, POST /chats/direct)
+│   │   ├── rooms/           (RoomsService, CreateDirectRoomDto)
+│   │   ├── websocket/       (Socket.IO Gateway, JWT 인증)
+│   │   └── common/          (Prisma, Redis, Guards, Filters)
+│   └── prisma/
+│       └── schema.prisma    (9개 모델)
+├── shared/                 # 서버 전용 TypeScript 공통 타입/상수/유틸
 ├── docker-compose.yml      # PostgreSQL 16 + Redis 7
 ├── turbo.json
 └── pnpm-workspace.yaml
@@ -103,7 +128,7 @@ flutter doctor
 pnpm install
 
 # Flutter 앱
-cd apps/app && flutter pub get
+cd app && flutter pub get
 ```
 
 ### 2. 인프라 실행 (DB + Redis)
@@ -115,13 +140,15 @@ docker-compose up -d
 docker-compose ps
 ```
 
-### 3. 서버 환경변수 설정
+### 3. 환경변수 설정
+
+**서버**
 
 ```bash
-cp apps/server/.env.example apps/server/.env
+cp server/.env.example server/.env
 ```
 
-`.env`에서 반드시 수정할 항목:
+`server/.env`에서 반드시 수정할 항목:
 
 ```env
 JWT_SECRET=<랜덤 32자 이상 문자열>
@@ -130,10 +157,23 @@ DATABASE_URL="postgresql://ringtalk:password@localhost:5432/ringtalk_db"
 OTP_MOCK=true        # 개발 중 SMS 없이 콘솔에서 OTP 확인
 ```
 
+**Flutter 앱**
+
+```bash
+# app/.env 파일 생성 (flutter_dotenv가 pubspec.yaml assets에서 읽음)
+cat > app/.env << 'EOF'
+API_URL=http://localhost:3000/api/v1
+WS_URL=ws://localhost:3000
+OTP_MOCK=true
+EOF
+```
+
+> `app/.env`는 `.gitignore` 대상입니다. 실제 서버 주소로 변경해 사용하세요.
+
 ### 4. DB 마이그레이션 + 시드
 
 ```bash
-cd apps/server
+cd server
 pnpm db:generate   # Prisma 클라이언트 생성
 pnpm db:migrate    # 마이그레이션 실행
 pnpm db:seed       # 테스트 데이터 삽입
@@ -146,7 +186,7 @@ pnpm db:seed       # 테스트 데이터 삽입
 pnpm server
 
 # Flutter 앱
-cd apps/app
+cd app
 flutter run                # 연결된 기기/시뮬레이터 자동 선택
 flutter run -d chrome      # 웹 (Chrome)
 flutter run -d ios         # iOS 시뮬레이터
@@ -164,29 +204,23 @@ flutter run -d windows     # Windows 네이티브
 | `go_router`              | 라우팅 (ShellRoute 탭 네비게이션) |
 | `flutter_riverpod`       | 상태 관리                         |
 | `dio`                    | HTTP 클라이언트 + 자동 토큰 갱신  |
-| `web_socket_channel`     | WebSocket                         |
-| `socket_io_client`       | Socket.IO 실시간 채팅 (3주차)     |
+| `socket_io_client`       | Socket.IO 실시간 채팅             |
 | `flutter_secure_storage` | 토큰·이용약관 동의 보안 저장      |
-| `reactive_forms`         | 폼 유효성 검사                    |
-| `cached_network_image`   | 이미지 캐싱                       |
+| `cached_network_image`   | 프로필·미디어 이미지 캐싱         |
 | `shimmer`                | 스켈레톤 로딩 UI                  |
 | `uuid`                   | 클라이언트 임시 메시지 ID         |
 | `crypto`                 | 전화번호 SHA-256 해시             |
-| `intl`                   | 날짜/시간 포맷                    |
 | `flutter_contacts`       | 기기 연락처 동기화                |
 | `permission_handler`     | 권한 요청 (연락처/카메라/알림)    |
-| `image_picker`           | 이미지 첨부 (4주차)               |
-| `file_picker`            | 파일 첨부 (4주차)                 |
+| `image_picker`           | 이미지 첨부 (4주차 예정)          |
+| `file_picker`            | 파일 첨부 (4주차 예정)            |
 | `flutter_dotenv`         | 환경변수 (.env)                   |
-| `flutter_svg`            | SVG 아이콘                        |
-| `lottie`                 | 애니메이션                        |
-| `flutter_slidable`       | 채팅 아이템 스와이프 액션         |
 
 ## 네이티브 설정 (필수)
 
 > ⚠️ `permission_handler` 설치 후 **네이티브 설정 필수**:
 >
-> **Android** — `android/app/src/main/AndroidManifest.xml`:
+> **Android** — `app/android/app/src/main/AndroidManifest.xml`:
 >
 > ```xml
 > <uses-permission android:name="android.permission.READ_CONTACTS"/>
@@ -195,7 +229,7 @@ flutter run -d windows     # Windows 네이티브
 > <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
 > ```
 >
-> **iOS** — `ios/Runner/Info.plist`:
+> **iOS** — `app/ios/Runner/Info.plist`:
 >
 > ```xml
 > <key>NSContactsUsageDescription</key>
@@ -209,15 +243,7 @@ flutter run -d windows     # Windows 네이티브
 ### NestJS 서버
 
 ```bash
-cd apps/server
-
-# 보안 헤더
-pnpm add helmet
-pnpm add compression
-pnpm add @types/compression -D
-
-# API 문서 (개발 편의)
-pnpm add @nestjs/swagger
+cd server
 
 # 파일 업로드 (4주차)
 pnpm add @aws-sdk/client-s3 @aws-sdk/s3-request-presigner
@@ -294,14 +320,17 @@ pnpm add multer @types/multer -D
 PR / push → main, develop
     │
     ├── 🖥 server-check
-    │     pnpm install → tsc shared-server → tsc server
+    │     pnpm install → prisma generate → tsc shared → tsc server
     │
     ├── 🐦 flutter-check
-    │     flutter pub get → flutter analyze → flutter test
+    │     touch .env → flutter pub get → flutter analyze → flutter test
     │
     └── 🏗 flutter-build  (main push 시)
-          Android APK debug 빌드 → artifact 7일 보관
+          touch .env → local.properties 생성 → flutter pub get
+          → Android APK debug 빌드 → artifact 7일 보관
 ```
+
+> `local.properties`는 `.gitignore` 대상이므로 CI에서 Flutter/Android SDK 경로를 동적으로 생성합니다.
 
 ---
 
@@ -312,7 +341,7 @@ PR / push → main, develop
 - [x] pnpm + Turborepo 모노레포
 - [x] Flutter 앱 (iOS/Android/Windows/macOS/**Web** 단일 코드베이스)
 - [x] NestJS 서버 골격
-- [x] `packages/shared-server` (TypeScript 공통 타입/상수/유틸)
+- [x] `shared` (TypeScript 공통 타입/상수/유틸)
 - [x] 퍼플 디자인 토큰 (라이트/다크 모드, warning 개나리·error 포르쉐 레드)
 - [x] **다크모드 토대** (`AppColorsDark` + `AppTheme.dark` + `ThemeMode.system`)
 - [x] Auth API (OTP 요청/검증/갱신/로그아웃)
@@ -340,14 +369,14 @@ PR / push → main, develop
 - [x] **1:1 채팅방 생성** — `POST /chats/direct` (participants 유니크, 친구 관계 검증)
 - [x] **채팅 목록** — `GET /chats` (최근 메시지, 안 읽음 뱃지, roomId 기반 화면)
 
-### 3주차: 실시간 메시징 + ACK/읽음
+### ✅ 3주차: 실시간 메시징 + ACK/읽음
 
 - [x] **Socket.IO 게이트웨이 + JWT 인증** — handshake 시 `auth.accessToken` 검증, 세션 확인
 - [x] **Flutter WS 인증** — SocketService, MainShell connect / SettingsScreen disconnect
-- [ ] `message.send` / `message.new` / `message.status` 이벤트
-- [ ] `client_message_id` 멱등성 보장
-- [ ] 읽음 처리 (`last_read_message_id`)
-- [ ] 전송 실패 재시도 UX
+- [x] **`message:send` / `message:new` / `message:status` 이벤트** — DB 저장, room 브로드캐스트, 낙관적 업데이트
+- [x] **`clientMessageId` 낙관적 업데이트** — message:new에 clientMessageId 포함, 발신자 중복 방지
+- [x] **읽음 처리 (`lastReadMessageId`)** — `chat.read` 이벤트, `MessageReadReceipt` DB 저장, `lastReadAt` 갱신, room 브로드캐스트, 채팅 목록 unreadCount 즉시 초기화
+- [x] **전송 실패 재시도 UX** — 10초 타임아웃 → `failed` 상태, 말풍선 빨간 테두리 + 재전송 버튼
 
 ### 4주차: 첨부 파일 업로드 (Pre-signed)
 
@@ -423,7 +452,7 @@ Welcome → 전화번호 입력 → OTP 인증 → 프로필 설정 → 메인
 
 ## DB 스키마 (PostgreSQL)
 
-Prisma 스키마 파일: `apps/server/prisma/schema.prisma`
+Prisma 스키마 파일: `server/prisma/schema.prisma`
 
 | 테이블                  | 설명                                 |
 | ----------------------- | ------------------------------------ |
@@ -467,24 +496,34 @@ socket.on('authenticated', (data) => console.log('인증 완료:', data.userId))
 
 ### 클라 → 서버
 
-| 이벤트          | 페이로드                                           | 설명                |
-| --------------- | -------------------------------------------------- | ------------------- |
-| (연결 시)       | `auth: { accessToken }`                            | WS 인증 (handshake) |
-| `message.send`  | `{ chatId, clientMessageId, text?, attachments? }` | 메시지 전송         |
-| `message.ack`   | `{ messageId }`                                    | 저장 완료 확인      |
-| `chat.read`     | `{ chatId, lastReadMessageId }`                    | 읽음 처리           |
-| `presence.ping` | `{ ts }`                                           | 온라인 유지         |
+| 이벤트             | 페이로드                                                    | 설명                |
+| ------------------ | ----------------------------------------------------------- | ------------------- |
+| (연결 시)          | `auth: { accessToken }`                                     | WS 인증 (handshake) |
+| `room:join`        | `{ roomId }`                                                | 채팅방 입장         |
+| `room:leave`       | `{ roomId }`                                                | 채팅방 퇴장         |
+| `message:send`     | `{ roomId, clientMessageId, content, type? }`               | 메시지 전송         |
+| `message:delivered`| `{ messageId, roomId }`                                     | 수신 확인           |
+| `chat.read`        | `{ roomId, lastReadMessageId? }`                            | 읽음 처리           |
 
 ### 서버 → 클라
 
-| 이벤트             | 페이로드                                  | 설명                  |
-| ------------------ | ----------------------------------------- | --------------------- |
-| `message.new`      | `{ message }`                             | 새 메시지             |
-| `message.status`   | `{ clientMessageId, status, messageId? }` | `sent/delivered/read` |
-| `chat.read_update` | `{ chatId, userId, lastReadMessageId }`   | 읽음 동기화           |
-| `error`            | `{ code, message }`                       | 오류                  |
+| 이벤트           | 페이로드                                                              | 설명                         |
+| ---------------- | --------------------------------------------------------------------- | ---------------------------- |
+| `authenticated`  | `{ userId }`                                                          | 인증 완료                    |
+| `message:new`    | `{ message, clientMessageId? }`                                       | 새 메시지 (room 전체 브로드) |
+| `message:status` | `{ clientMessageId, status, messageId }` / `{ status:'read', readBy, lastReadMessageId }` | ACK / 읽음 알림 |
+| `chat.read`      | `{ roomId, userId, readAt, lastReadMessageId? }`                      | 읽음 동기화 (room 전체 브로드) |
+| `error`          | `{ code, message }`                                                   | 오류                         |
 
-> `clientMessageId(uuid)`로 멱등 처리 — 재전송해도 중복 저장 없음
+**메시지 상태 흐름**
+
+```
+sending → (socket emit) → sent → delivered → read
+    └─ 10초 타임아웃 → failed → (재시도 버튼) → sending
+```
+
+> `clientMessageId(uuid)` — 낙관적 업데이트용. `message:new`에 포함되어 발신자 중복 방지.
+> `lastReadMessageId` — 해당 메시지까지 읽음 처리. 없으면 방 전체 읽음.
 
 ---
 

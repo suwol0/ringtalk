@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, dev]
   pull_request:
-    branches: [main, develop]
+    branches: [main, dev]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -29,8 +29,6 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - name: Get pnpm store directory
         id: pnpm-cache
@@ -46,6 +44,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @ringtalk/server exec prisma generate
 
       - name: TypeScript check — shared-server
         run: pnpm --filter @ringtalk/shared-server exec tsc --noEmit
@@ -71,16 +72,20 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Create .env placeholder
+        working-directory: app
+        run: touch .env
+
       - name: Get Flutter dependencies
-        working-directory: apps/app
+        working-directory: app
         run: flutter pub get
 
       - name: Flutter analyze
-        working-directory: apps/app
+        working-directory: app
         run: flutter analyze --no-fatal-infos
 
       - name: Flutter test
-        working-directory: apps/app
+        working-directory: app
         run: flutter test
 
   # ─────────────────────────────────────────────────────────────
@@ -110,17 +115,28 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Create .env placeholder
+        working-directory: app
+        run: touch .env
+
+      - name: Create local.properties
+        working-directory: app/android
+        run: |
+          FLUTTER_ROOT=$(dirname $(dirname $(which flutter)))
+          echo "flutter.sdk=$FLUTTER_ROOT" > local.properties
+          echo "sdk.dir=$ANDROID_HOME" >> local.properties
+
       - name: Get Flutter dependencies
-        working-directory: apps/app
+        working-directory: app
         run: flutter pub get
 
       - name: Build Android APK (debug)
-        working-directory: apps/app
+        working-directory: app
         run: flutter build apk --debug --no-pub
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: ringtalk-debug-${{ github.sha }}
-          path: apps/app/build/app/outputs/flutter-apk/app-debug.apk
+          path: app/build/app/outputs/flutter-apk/app-debug.apk
           retention-days: 7

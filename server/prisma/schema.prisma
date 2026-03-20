@@ -1,0 +1,225 @@
+// Prisma 스키마 - 링톡 메신저
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────
+// 유저
+// ─────────────────────────────────────────
+
+model User {
+  id             String   @id @default(uuid())
+  phoneHash      String   @unique // SHA-256(E.164 전화번호 + salt)
+  phoneE164      String   @unique // 실제 전화번호 (암호화 저장 권장)
+  displayName    String
+  profileImageUrl String?
+  statusMessage  String?
+  status         UserStatus @default(active)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  sessions       UserSession[]
+  sentFriends    Friend[] @relation("UserFriends")
+  receivedFriends Friend[] @relation("FriendUser")
+  roomParticipants RoomParticipant[]
+  sentMessages   Message[]
+  readReceipts   MessageReadReceipt[]
+
+  @@index([phoneHash])
+  @@map("users")
+}
+
+enum UserStatus {
+  active
+  inactive
+  blocked
+  withdrawn
+}
+
+// ─────────────────────────────────────────
+// 세션 (디바이스별 로그인)
+// ─────────────────────────────────────────
+
+model UserSession {
+  id           String   @id @default(uuid())
+  userId       String
+  deviceId     String
+  deviceName   String
+  platform     Platform
+  pushToken    String?
+  refreshToken String   @unique // 해시된 리프레시 토큰
+  lastSeenAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceId])
+  @@index([userId])
+  @@map("user_sessions")
+}
+
+enum Platform {
+  ios
+  android
+  windows
+  macos
+  web
+}
+
+// ─────────────────────────────────────────
+// OTP
+// ─────────────────────────────────────────
+
+model OtpRecord {
+  id          String   @id @default(uuid())
+  phoneE164   String
+  otpHash     String   // 해시된 OTP
+  attempts    Int      @default(0)
+  expiresAt   DateTime
+  verified    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([phoneE164])
+  @@map("otp_records")
+}
+
+// ─────────────────────────────────────────
+// 친구
+// ─────────────────────────────────────────
+
+model Friend {
+  id        String       @id @default(uuid())
+  userId    String
+  friendId  String
+  status    FriendStatus @default(accepted)
+  alias     String?
+  createdAt DateTime     @default(now())
+
+  user      User         @relation("UserFriends", fields: [userId], references: [id], onDelete: Cascade)
+  friend    User         @relation("FriendUser", fields: [friendId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, friendId])
+  @@index([userId])
+  @@map("friends")
+}
+
+enum FriendStatus {
+  pending
+  accepted
+  blocked
+}
+
+// ─────────────────────────────────────────
+// 채팅방
+// ─────────────────────────────────────────
+
+model ChatRoom {
+  id             String    @id @default(uuid())
+  type           RoomType
+  name           String?
+  profileImageUrl String?
+  createdById    String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  participants   RoomParticipant[]
+  messages       Message[]
+
+  @@map("chat_rooms")
+}
+
+enum RoomType {
+  direct
+  group
+}
+
+model RoomParticipant {
+  id         String   @id @default(uuid())
+  roomId     String
+  userId     String
+  role       ParticipantRole @default(member)
+  joinedAt   DateTime @default(now())
+  lastReadAt DateTime?
+  isMuted    Boolean  @default(false)
+  leftAt     DateTime?
+
+  room       ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+  @@index([roomId])
+  @@index([userId])
+  @@map("room_participants")
+}
+
+enum ParticipantRole {
+  owner
+  admin
+  member
+}
+
+// ─────────────────────────────────────────
+// 메시지
+// ─────────────────────────────────────────
+
+model Message {
+  id              String       @id @default(uuid())
+  roomId          String
+  senderId        String
+  clientMessageId String?
+  type            MessageType  @default(text)
+  content         String
+  mediaUrl        String?
+  replyToId       String?
+  isDeleted       Boolean      @default(false)
+  deletedFor      DeleteScope  @default(none)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  room        ChatRoom    @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  sender      User        @relation(fields: [senderId], references: [id])
+  replyTo     Message?    @relation("MessageReplies", fields: [replyToId], references: [id])
+  replies     Message[]   @relation("MessageReplies")
+  readReceipts MessageReadReceipt[]
+
+  @@unique([roomId, senderId, clientMessageId])
+  @@index([roomId, createdAt])
+  @@index([senderId])
+  @@map("messages")
+}
+
+enum MessageType {
+  text
+  image
+  video
+  file
+  audio
+  system
+}
+
+enum DeleteScope {
+  none
+  me
+  all
+}
+
+model MessageReadReceipt {
+  id        String   @id @default(uuid())
+  messageId String
+  userId    String
+  readAt    DateTime @default(now())
+
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([messageId])
+  @@map("message_read_receipts")
+}

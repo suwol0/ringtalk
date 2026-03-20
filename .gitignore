@@ -32,15 +32,12 @@ Thumbs.db
 .vscode/settings.json
 .idea
 
-# Expo / React Native
-.expo
-ios/
-android/
+# Flutter (Android 서명 키 — 절대 커밋 금지)
 *.jks
 *.keystore
 
-# Tauri
-apps/desktop/src-tauri/target/
+# Flutter iOS 빌드 산출물
+ios/
 
 # Prisma
 prisma/migrations/
