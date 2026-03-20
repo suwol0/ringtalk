@@ -13,15 +13,20 @@ class MessageBubble extends StatelessWidget {
     required this.isMine,
     this.showTime = true,
     this.showStatus = false,
+    this.onRetry,
   });
 
   final Message message;
   final bool isMine;
   final bool showTime;
   final bool showStatus;
+  /// 전송 실패 시 재시도 콜백 (null이면 버튼 미표시)
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
+    final isFailed = message.status == MessageStatus.failed;
+
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
       child: Padding(
@@ -29,47 +34,81 @@ class MessageBubble extends StatelessWidget {
         child: Column(
           crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
-            Container(
-              constraints: BoxConstraints(
-                maxWidth: bubbleMaxWidth(context),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: isMine ? AppColors.bubbleMine : AppColors.bubbleOther,
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(18),
-                  topRight: const Radius.circular(18),
-                  bottomLeft: Radius.circular(isMine ? 18 : 4),
-                  bottomRight: Radius.circular(isMine ? 4 : 18),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 4,
-                    offset: const Offset(0, 1),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // 전송 실패 재시도 버튼 (말풍선 왼쪽)
+                if (isMine && isFailed && onRetry != null) ...[
+                  GestureDetector(
+                    onTap: onRetry,
+                    child: Tooltip(
+                      message: '탭하여 재전송',
+                      child: Container(
+                        margin: const EdgeInsets.only(right: 6),
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: AppColors.error.withValues(alpha: 0.12),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.refresh_rounded,
+                          size: 16,
+                          color: AppColors.error,
+                        ),
+                      ),
+                    ),
                   ),
                 ],
-              ),
-              child: _buildContent(context),
+                Container(
+                  constraints: BoxConstraints(maxWidth: bubbleMaxWidth(context)),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: isFailed
+                        ? AppColors.error.withValues(alpha: 0.08)
+                        : (isMine ? AppColors.bubbleMine : AppColors.bubbleOther),
+                    borderRadius: BorderRadius.only(
+                      topLeft: const Radius.circular(18),
+                      topRight: const Radius.circular(18),
+                      bottomLeft: Radius.circular(isMine ? 18 : 4),
+                      bottomRight: Radius.circular(isMine ? 4 : 18),
+                    ),
+                    border: isFailed
+                        ? Border.all(color: AppColors.error.withValues(alpha: 0.4), width: 1)
+                        : null,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.04),
+                        blurRadius: 4,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                  child: _buildContent(context),
+                ),
+              ],
             ),
             if (showTime || showStatus) ...[
               const SizedBox(height: 2),
               Row(
                 mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment:
-                    isMine ? MainAxisAlignment.end : MainAxisAlignment.start,
+                mainAxisAlignment: isMine ? MainAxisAlignment.end : MainAxisAlignment.start,
                 children: [
-                  if (showTime)
-                    Text(
-                      date_utils.formatMessageTime(message.createdAt),
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: AppColors.textSecondary,
+                  if (isMine && isFailed)
+                    const Text(
+                      '전송 실패',
+                      style: TextStyle(fontSize: 11, color: AppColors.error),
+                    )
+                  else ...[
+                    if (showTime)
+                      Text(
+                        date_utils.formatMessageTime(message.createdAt),
+                        style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
                       ),
-                    ),
-                  if (showStatus && isMine) ...[
-                    if (showTime) const SizedBox(width: 4),
-                    _StatusIcon(status: message.status),
+                    if (showStatus && isMine) ...[
+                      if (showTime) const SizedBox(width: 4),
+                      _StatusIcon(status: message.status),
+                    ],
                   ],
                 ],
               ),
