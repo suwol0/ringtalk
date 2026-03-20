@@ -139,6 +139,9 @@ export const WsEvents = {
   MESSAGE_DELETE: 'message:delete',
   MESSAGE_DELETED: 'message:deleted',
 
+  // 읽음 처리
+  CHAT_READ: 'chat.read',
+
   // 방
   ROOM_JOIN: 'room:join',
   ROOM_LEAVE: 'room:leave',
