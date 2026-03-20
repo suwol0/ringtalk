@@ -45,6 +45,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     ref.read(chatRoomProvider(widget.roomId).notifier).sendMessage(content);
   }
 
+  void _retry(String clientTempId) {
+    ref.read(chatRoomProvider(widget.roomId).notifier).retryMessage(clientTempId);
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(chatRoomProvider(widget.roomId));
@@ -193,6 +197,9 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
           isMine: msg.senderId == myUserId,
           showTime: true,
           showStatus: msg.senderId == myUserId,
+          onRetry: msg.status == MessageStatus.failed && msg.clientTempId != null
+              ? () => _retry(msg.clientTempId!)
+              : null,
         ),
       );
     }
