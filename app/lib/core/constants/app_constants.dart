@@ -45,13 +45,6 @@ abstract class ApiEndpoints {
   // 연락처 동기화 (친구 목록은 GET /users/me/friends 사용)
   static const contactsSync = '/contacts/sync';
 
-  // 채팅방
-  static const rooms = '/rooms';
-  static String roomDetail(String id) => '/rooms/$id';
-  static String roomMessages(String id) => '/rooms/$id/messages';
-  static String sendMessage(String id) => '/rooms/$id/messages';
-  static String readMessage(String id) => '/rooms/$id/read';
-
   // 채팅 (목록, 1:1 생성, 메시지)
   static const chats = '/chats';
   static const chatsDirect = '/chats/direct';

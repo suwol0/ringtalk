@@ -22,12 +22,16 @@ class ChatListScreen extends ConsumerStatefulWidget {
 }
 
 class _ChatListScreenState extends ConsumerState<ChatListScreen> {
+  String _myUserId = '';
+
   @override
   void initState() {
     super.initState();
-    Future.microtask(
-      () => ref.read(roomsProvider.notifier).fetchRooms(),
-    );
+    AuthStorage.getUserId().then((id) {
+      if (!mounted) return;
+      setState(() => _myUserId = id ?? '');
+    });
+    Future.microtask(() => ref.read(roomsProvider.notifier).fetchRooms());
   }
 
   Future<void> _onRefresh() async {
@@ -105,30 +109,24 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
       return const EmptyChatsView();
     }
 
+    if (_myUserId.isEmpty) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.primary),
+      );
+    }
+
     return RefreshIndicator(
       onRefresh: _onRefresh,
       color: AppColors.primary,
-      child: FutureBuilder<String?>(
-        future: AuthStorage.getUserId(),
-        builder: (context, snapshot) {
-          final myUserId = snapshot.data ?? '';
-          if (myUserId.isEmpty) {
-            return const Center(
-              child: CircularProgressIndicator(color: AppColors.primary),
-            );
-          }
-
-          return ListView.separated(
-            itemCount: rooms.length,
-            separatorBuilder: (_, __) => const Divider(indent: 72, height: 0),
-            itemBuilder: (context, i) {
-              final room = rooms[i];
-              return ChatRoomTile(
-                room: room,
-                myUserId: myUserId,
-                onTap: () => _onRoomTap(room.id, room.displayName(myUserId)),
-              );
-            },
+      child: ListView.separated(
+        itemCount: rooms.length,
+        separatorBuilder: (_, __) => const Divider(indent: 72, height: 0),
+        itemBuilder: (context, i) {
+          final room = rooms[i];
+          return ChatRoomTile(
+            room: room,
+            myUserId: _myUserId,
+            onTap: () => _onRoomTap(room.id, room.displayName(_myUserId)),
           );
         },
       ),

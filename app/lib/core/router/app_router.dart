@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -16,16 +17,43 @@ import '../utils/responsive.dart';
 import '../../shared/widgets/desktop_chat_layout.dart';
 import '../../shared/widgets/main_shell.dart';
 
+// ─── 인증 상태 변화를 GoRouter에 알리는 ChangeNotifier ───────────────────────
+class _AuthNotifier extends ChangeNotifier {
+  final Ref _ref;
+  bool _isAuthenticated = false;
+  bool _isLoading = true;
+
+  bool get isAuthenticated => _isAuthenticated;
+  bool get isLoading => _isLoading;
+
+  _AuthNotifier(this._ref) {
+    _init();
+    _ref.listen<AsyncValue<bool>>(isAuthenticatedProvider, (_, next) {
+      _isLoading = next.isLoading;
+      _isAuthenticated = next.valueOrNull ?? false;
+      notifyListeners();
+    });
+  }
+
+  Future<void> _init() async {
+    _isAuthenticated = await AuthStorage.isAuthenticated();
+    _isLoading = false;
+    notifyListeners();
+  }
+}
+
+// ─── GoRouter — 앱 수명 동안 단 한 번만 생성 ────────────────────────────────
 final routerProvider = Provider<GoRouter>((ref) {
-  final authAsync = ref.watch(isAuthenticatedProvider);
+  final authNotifier = _AuthNotifier(ref);
 
-  // AsyncValue<bool> → bool (로딩 중엔 false로 처리)
-  final isAuthenticated = authAsync.valueOrNull ?? false;
-
-  return GoRouter(
-    initialLocation: isAuthenticated ? '/chats' : '/welcome',
+  final router = GoRouter(
+    initialLocation: '/welcome',
+    refreshListenable: authNotifier,
     redirect: (context, state) {
-      final loggedIn = isAuthenticated;
+      // 인증 확인 중에는 리다이렉트 보류
+      if (authNotifier.isLoading) return null;
+
+      final loggedIn = authNotifier.isAuthenticated;
       final onAuthRoute = state.matchedLocation.startsWith('/welcome') ||
           state.matchedLocation.startsWith('/phone') ||
           state.matchedLocation.startsWith('/otp') ||
@@ -55,7 +83,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/chats',
             builder: (context, __) {
-              // 데스크톱에서는 2-패널 레이아웃, 모바일/태블릿은 목록만 표시
               if (Responsive.isDesktop(context)) {
                 return const DesktopChatLayout();
               }
@@ -86,4 +113,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
     ],
   );
+
+  ref.onDispose(() {
+    authNotifier.dispose();
+    router.dispose();
+  });
+
+  return router;
 });
