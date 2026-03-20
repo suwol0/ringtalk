@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
@@ -12,10 +13,9 @@ import 'rooms_provider.dart';
 
 final messagesRepositoryProvider = Provider<MessagesRepository>((_) => MessagesRepository());
 
-/// 전송 실패 타임아웃 (서버 ACK 미수신 시 failed 처리)
+/// 전송 실패 타임아웃
 const _sendTimeoutDuration = Duration(seconds: 10);
 
-/// 채팅방 메시지 상태 (실시간 업데이트 포함)
 class ChatRoomState {
   final List<Message> messages;
   final bool isLoading;
@@ -50,6 +50,9 @@ class ChatRoomNotifier extends StateNotifier<ChatRoomState> {
   /// clientTempId → 전송 타임아웃 타이머
   final Map<String, Timer> _sendTimers = {};
 
+  /// 소켓 연결 대기 콜백 (race condition 방지)
+  VoidCallback? _onConnectRetry;
+
   ChatRoomNotifier(this._ref, this.roomId) : super(const ChatRoomState()) {
     loadMessages();
     _subscribeToSocket();
@@ -62,28 +65,22 @@ class ChatRoomNotifier extends StateNotifier<ChatRoomState> {
     try {
       final repo = _ref.read(messagesRepositoryProvider);
       final result = await repo.fetchMessages(roomId);
+      if (!mounted) return;
       state = state.copyWith(messages: result.messages, isLoading: false);
 
-      // 로드 완료 후 마지막 메시지까지 읽음 처리
       _emitMarkRead();
-
-      // unreadCount 즉시 0으로 (낙관적)
       _ref.read(roomsProvider.notifier).markRoomAsRead(roomId);
     } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: e.toString(),
-      );
+      if (!mounted) return;
+      state = state.copyWith(isLoading: false, errorMessage: e.toString());
     }
   }
 
   // ─── 읽음 처리 ───────────────────────────────────────────────
 
-  /// 마지막 메시지 기준 chat.read 이벤트 발신
   void _emitMarkRead() {
     final socket = _ref.read(socketServiceProvider).socket;
     if (socket == null) return;
-
     final lastMessage = state.messages.isNotEmpty ? state.messages.last : null;
     socket.emit(WsEvents.chatRead, {
       'roomId': roomId,
@@ -91,14 +88,25 @@ class ChatRoomNotifier extends StateNotifier<ChatRoomState> {
     });
   }
 
-  /// 외부에서 수동 읽음 처리 (예: 스크롤 최하단 도달)
   void markRead() => _emitMarkRead();
 
   // ─── 소켓 이벤트 구독 ────────────────────────────────────────
 
   void _subscribeToSocket() {
-    final socket = _ref.read(socketServiceProvider).socket;
-    if (socket == null) return;
+    final socketService = _ref.read(socketServiceProvider);
+    final socket = socketService.socket;
+
+    // 소켓이 아직 연결되지 않았으면 onConnect 콜백으로 재시도
+    if (socket == null || !socketService.isConnected) {
+      _onConnectRetry = () {
+        if (!mounted) return;
+        socketService.removeOnConnectCallback(_onConnectRetry!);
+        _onConnectRetry = null;
+        _subscribeToSocket();
+      };
+      socketService.addOnConnectCallback(_onConnectRetry!);
+      return;
+    }
 
     socket.emit(WsEvents.roomJoin, {'roomId': roomId});
 
@@ -112,6 +120,7 @@ class ChatRoomNotifier extends StateNotifier<ChatRoomState> {
       final clientMessageId = data['clientMessageId'] as String?;
 
       AuthStorage.getUserId().then((myUserId) {
+        if (!mounted) return;
         final isFromMe = myUserId != null && msg.senderId == myUserId;
 
         if (isFromMe && clientMessageId != null) {
@@ -132,10 +141,10 @@ class ChatRoomNotifier extends StateNotifier<ChatRoomState> {
         if (state.messages.any((m) => m.id == msg.id)) return;
 
         state = state.copyWith(
-          messages: [...state.messages, msg]..sort((a, b) => a.createdAt.compareTo(b.createdAt)),
+          messages: [...state.messages, msg]
+            ..sort((a, b) => a.createdAt.compareTo(b.createdAt)),
         );
 
-        // 상대방 메시지 도착 시 delivered + 즉시 읽음 처리
         if (!isFromMe) {
           socket.emit(WsEvents.messageDelivered, {'messageId': msg.id, 'roomId': roomId});
           _emitMarkRead();
@@ -151,24 +160,21 @@ class ChatRoomNotifier extends StateNotifier<ChatRoomState> {
       final messageId = data['messageId'] as String?;
       final clientMessageId = data['clientMessageId'] as String?;
 
-      // sent ACK → 타이머 취소 + 상태 업데이트
       if (status == 'sent' && clientMessageId != null) {
         _cancelSendTimer(clientMessageId);
+        if (!mounted) return;
         state = state.copyWith(
           messages: state.messages.map((m) {
             if (m.clientTempId == clientMessageId) {
-              return m.copyWith(
-                id: messageId ?? m.id,
-                status: MessageStatus.sent,
-              );
+              return m.copyWith(id: messageId ?? m.id, status: MessageStatus.sent);
             }
             return m;
           }).toList(),
         );
       }
 
-      // delivered
       if (status == 'delivered' && messageId != null) {
+        if (!mounted) return;
         state = state.copyWith(
           messages: state.messages.map((m) {
             if (m.id == messageId && m.status != MessageStatus.read) {
@@ -181,13 +187,14 @@ class ChatRoomNotifier extends StateNotifier<ChatRoomState> {
     };
     socket.on(WsEvents.messageStatus, _messageStatusHandler!);
 
-    // chat.read: 상대방 읽음 → 내 메시지 read 처리
+    // chat.read: 상대방이 읽었을 때 → 내 메시지 read 처리
     _chatReadHandler = (data) {
       if (data is! Map) return;
       final payload = WsChatRead.fromJson(Map<String, dynamic>.from(data));
       if (payload.roomId != roomId) return;
 
       AuthStorage.getUserId().then((myUserId) {
+        if (!mounted) return;
         if (myUserId == null || payload.userId == myUserId) return;
 
         final receipt = MessageReadReceipt(userId: payload.userId, readAt: payload.readAt);
@@ -195,10 +202,7 @@ class ChatRoomNotifier extends StateNotifier<ChatRoomState> {
         state = state.copyWith(
           messages: state.messages.map((m) {
             if (m.senderId != myUserId) return m;
-            if (!m.createdAt.isBefore(payload.readAt) &&
-                m.createdAt != payload.readAt) {
-              return m;
-            }
+            if (m.createdAt.isAfter(payload.readAt)) return m;
             if (m.readBy.any((r) => r.userId == payload.userId)) return m;
             return m.copyWith(
               status: MessageStatus.read,
@@ -218,8 +222,9 @@ class ChatRoomNotifier extends StateNotifier<ChatRoomState> {
 
     final clientMessageId = const Uuid().v4();
     final now = DateTime.now();
-
     final myUserId = await AuthStorage.getUserId();
+    if (!mounted) return;
+
     if (myUserId != null) {
       state = state.copyWith(
         messages: [
@@ -255,18 +260,16 @@ class ChatRoomNotifier extends StateNotifier<ChatRoomState> {
       'type': 'text',
     });
 
-    // 타임아웃: 10초 내 ACK 없으면 failed
     _startSendTimer(clientMessageId, content.trim());
   }
 
-  /// 전송 실패 메시지 재시도
   Future<void> retryMessage(String clientTempId) async {
     final msg = state.messages.firstWhere(
       (m) => m.clientTempId == clientTempId,
       orElse: () => throw StateError('메시지를 찾을 수 없습니다.'),
     );
 
-    // 상태를 sending으로 복원
+    if (!mounted) return;
     state = state.copyWith(
       messages: state.messages.map((m) {
         if (m.clientTempId != clientTempId) return m;
@@ -294,9 +297,7 @@ class ChatRoomNotifier extends StateNotifier<ChatRoomState> {
 
   void _startSendTimer(String clientTempId, String content) {
     _cancelSendTimer(clientTempId);
-    _sendTimers[clientTempId] = Timer(_sendTimeoutDuration, () {
-      _markAsFailed(clientTempId);
-    });
+    _sendTimers[clientTempId] = Timer(_sendTimeoutDuration, () => _markAsFailed(clientTempId));
   }
 
   void _cancelSendTimer(String clientTempId) {
@@ -325,7 +326,13 @@ class ChatRoomNotifier extends StateNotifier<ChatRoomState> {
     }
     _sendTimers.clear();
 
-    final socket = _ref.read(socketServiceProvider).socket;
+    final socketService = _ref.read(socketServiceProvider);
+    if (_onConnectRetry != null) {
+      socketService.removeOnConnectCallback(_onConnectRetry!);
+      _onConnectRetry = null;
+    }
+
+    final socket = socketService.socket;
     if (socket != null) {
       if (_messageNewHandler != null) socket.off(WsEvents.messageNew, _messageNewHandler!);
       if (_messageStatusHandler != null) socket.off(WsEvents.messageStatus, _messageStatusHandler!);
