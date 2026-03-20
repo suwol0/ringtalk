@@ -11,12 +11,16 @@ export interface SendMessagePayload {
   replyToId?: string;
 }
 
+const ALLOWED_MESSAGE_TYPES = ['text', 'image', 'video', 'file', 'audio', 'system'] as const;
+type AllowedMessageType = (typeof ALLOWED_MESSAGE_TYPES)[number];
+
 @Injectable()
 export class MessagesService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
    * 메시지 저장 (message:send 이벤트)
+   * - message.create + chatRoom.updatedAt 갱신을 트랜잭션으로 묶어 원자성 보장
    */
   async sendMessage(senderId: string, payload: SendMessagePayload) {
     const { roomId, clientMessageId, content, type = 'text', mediaUrl, replyToId } = payload;
@@ -28,11 +32,15 @@ export class MessagesService {
       });
     }
 
+    // MessageType 화이트리스트 검증
+    const safeType: AllowedMessageType = (ALLOWED_MESSAGE_TYPES as readonly string[]).includes(type)
+      ? (type as AllowedMessageType)
+      : 'text';
+
     // 참여자 확인
     const participation = await this.prisma.roomParticipant.findFirst({
       where: { roomId, userId: senderId, leftAt: null },
     });
-
     if (!participation) {
       throw new ForbiddenException({
         code: ErrorCode.NOT_ROOM_MEMBER,
@@ -41,10 +49,7 @@ export class MessagesService {
     }
 
     // 방 존재 확인
-    const room = await this.prisma.chatRoom.findUnique({
-      where: { id: roomId },
-    });
-
+    const room = await this.prisma.chatRoom.findUnique({ where: { id: roomId } });
     if (!room) {
       throw new ForbiddenException({
         code: ErrorCode.ROOM_NOT_FOUND,
@@ -56,57 +61,44 @@ export class MessagesService {
     const existing = await this.prisma.message.findFirst({
       where: { roomId, senderId, clientMessageId },
       include: {
-        sender: {
-          select: {
-            id: true,
-            displayName: true,
-            profileImageUrl: true,
-          },
-        },
+        sender: { select: { id: true, displayName: true, profileImageUrl: true } },
+        readReceipts: { select: { userId: true, readAt: true } },
       },
     });
     if (existing) {
-      return {
-        message: this._formatMessage(existing),
-        clientMessageId,
-      };
+      return { message: this._formatMessage(existing), clientMessageId };
     }
 
-    const message = await this.prisma.message.create({
-      data: {
-        roomId,
-        senderId,
-        clientMessageId,
-        type: type as any,
-        content: content.trim(),
-        mediaUrl: mediaUrl ?? null,
-        replyToId: replyToId ?? null,
-      },
-      include: {
-        sender: {
-          select: {
-            id: true,
-            displayName: true,
-            profileImageUrl: true,
-          },
+    // 메시지 생성 + 방 updatedAt 갱신을 하나의 트랜잭션으로
+    const message = await this.prisma.$transaction(async (tx) => {
+      const msg = await tx.message.create({
+        data: {
+          roomId,
+          senderId,
+          clientMessageId,
+          type: safeType,
+          content: content.trim(),
+          mediaUrl: mediaUrl ?? null,
+          replyToId: replyToId ?? null,
         },
-      },
+        include: {
+          sender: { select: { id: true, displayName: true, profileImageUrl: true } },
+          readReceipts: { select: { userId: true, readAt: true } },
+        },
+      });
+      await tx.chatRoom.update({
+        where: { id: roomId },
+        data: { updatedAt: new Date() },
+      });
+      return msg;
     });
 
-    // ChatRoom updatedAt 갱신
-    await this.prisma.chatRoom.update({
-      where: { id: roomId },
-      data: { updatedAt: new Date() },
-    });
-
-    return {
-      message: this._formatMessage(message),
-      clientMessageId,
-    };
+    return { message: this._formatMessage(message), clientMessageId };
   }
 
   /**
    * 방의 메시지 목록 조회 (페이지네이션)
+   * - readReceipts 포함으로 클라이언트에서 readBy 바로 사용 가능
    */
   async getMessages(roomId: string, userId: string, cursor?: string, limit = 50) {
     const participation = await this.prisma.roomParticipant.findFirst({
@@ -119,10 +111,12 @@ export class MessagesService {
       });
     }
 
+    const safeLimit = Math.min(Number.isFinite(limit) && limit > 0 ? limit : 50, 100);
+
     const messages = await this.prisma.message.findMany({
       where: { roomId },
       orderBy: { createdAt: 'desc' },
-      take: limit + 1,
+      take: safeLimit + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       select: {
         id: true,
@@ -136,24 +130,23 @@ export class MessagesService {
         deletedFor: true,
         createdAt: true,
         updatedAt: true,
+        readReceipts: { select: { userId: true, readAt: true } },
       },
     });
 
-    const hasMore = messages.length > limit;
-    const items = hasMore ? messages.slice(0, limit) : messages;
+    const hasMore = messages.length > safeLimit;
+    const items = hasMore ? messages.slice(0, safeLimit) : messages;
 
     return {
-      messages: items.map((m: (typeof items)[number]) => this._formatMessage(m)),
+      messages: items.map((m) => this._formatMessage(m)),
       nextCursor: hasMore ? items[items.length - 1].id : null,
     };
   }
 
   /**
    * 읽음 처리 (chat.read 이벤트)
-   * - lastReadMessageId 기준: 해당 메시지까지만 읽음 처리 (없으면 전체)
-   * - RoomParticipant.lastReadAt 갱신
-   * - 내가 읽지 않은 메시지에 MessageReadReceipt upsert
-   * - 읽힌 메시지들의 senderId 목록 반환 (발신자에게 알림 전송용)
+   * - lastReadMessageId 기준: 해당 메시지까지만 읽음 처리
+   * - 잘못된 lastReadMessageId → 해당 값 무시하고 현재 시각 기준으로 처리
    */
   async markRead(
     roomId: string,
@@ -170,30 +163,31 @@ export class MessagesService {
       });
     }
 
-    // lastReadMessageId 기준 메시지의 createdAt 조회
     let readUntil: Date = new Date();
-    let resolvedLastReadMessageId = lastReadMessageId;
+    let resolvedLastReadMessageId: string | undefined = undefined;
 
     if (lastReadMessageId) {
       const targetMessage = await this.prisma.message.findFirst({
         where: { id: lastReadMessageId, roomId },
         select: { id: true, createdAt: true },
       });
+
       if (targetMessage) {
         readUntil = targetMessage.createdAt;
         resolvedLastReadMessageId = targetMessage.id;
       }
+      // 잘못된 ID: readUntil은 new Date()로 유지되고 resolvedId는 undefined
+      // → 이 경우 "방 전체" 읽음으로 처리
     }
 
     const readAt = new Date();
 
-    // lastReadAt 갱신
     await this.prisma.roomParticipant.update({
       where: { roomId_userId: { roomId, userId } },
       data: { lastReadAt: readUntil },
     });
 
-    // 내가 보내지 않은 메시지 중 readUntil 이전이며 readReceipt 없는 것들 조회
+    // 내가 보내지 않은 메시지 중 readUntil 이전이며 readReceipt 없는 것들
     const unreadMessages = await this.prisma.message.findMany({
       where: {
         roomId,
@@ -206,11 +200,7 @@ export class MessagesService {
 
     if (unreadMessages.length > 0) {
       await this.prisma.messageReadReceipt.createMany({
-        data: unreadMessages.map((m) => ({
-          messageId: m.id,
-          userId,
-          readAt,
-        })),
+        data: unreadMessages.map((m) => ({ messageId: m.id, userId, readAt })),
         skipDuplicates: true,
       });
     }
@@ -226,14 +216,17 @@ export class MessagesService {
       senderId: msg.senderId,
       type: msg.type,
       content: msg.content,
-      mediaUrl: msg.mediaUrl,
-      replyToId: msg.replyToId,
-      isDeleted: msg.isDeleted,
-      deletedFor: msg.deletedFor,
+      mediaUrl: msg.mediaUrl ?? null,
+      replyToId: msg.replyToId ?? null,
+      isDeleted: msg.isDeleted ?? false,
+      deletedFor: msg.deletedFor ?? 'none',
       createdAt: msg.createdAt,
       updatedAt: msg.updatedAt,
       status: 'sent',
-      readBy: [] as { userId: string; readAt: string }[],
+      readBy: (msg.readReceipts ?? []).map((r: any) => ({
+        userId: r.userId,
+        readAt: r.readAt,
+      })),
     };
   }
 }

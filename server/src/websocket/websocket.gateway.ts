@@ -100,30 +100,34 @@ export class WebSocketGatewayService
 
   @SubscribeMessage(WsEvents.ROOM_JOIN)
   async handleRoomJoin(
-    @MessageBody() data: { roomId: string },
+    @MessageBody() data: { roomId?: string } | null,
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
     const user = client.data.user;
     if (!user) return;
 
-    const { roomId } = data;
+    const roomId = data?.roomId;
     if (!roomId) return;
 
-    const participation = await this.prisma.roomParticipant.findFirst({
-      where: { roomId, userId: user.sub, leftAt: null },
-    });
-    if (!participation) return;
+    try {
+      const participation = await this.prisma.roomParticipant.findFirst({
+        where: { roomId, userId: user.sub, leftAt: null },
+      });
+      if (!participation) return;
 
-    client.join(ROOM_PREFIX + roomId);
-    this.logger.debug(`room:join userId=${user.sub} roomId=${roomId}`);
+      client.join(ROOM_PREFIX + roomId);
+      this.logger.debug(`room:join userId=${user.sub} roomId=${roomId}`);
+    } catch (err: any) {
+      this.logger.warn(`room:join 실패: ${err?.message}`);
+    }
   }
 
   @SubscribeMessage(WsEvents.ROOM_LEAVE)
   handleRoomLeave(
-    @MessageBody() data: { roomId: string },
+    @MessageBody() data: { roomId?: string } | null,
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
-    const { roomId } = data;
+    const roomId = data?.roomId;
     if (roomId) client.leave(ROOM_PREFIX + roomId);
   }
 
@@ -235,29 +239,34 @@ export class WebSocketGatewayService
 
   @SubscribeMessage(WsEvents.MESSAGE_DELIVERED)
   async handleMessageDelivered(
-    @MessageBody() data: { messageId: string; roomId: string },
+    @MessageBody() data: { messageId?: string; roomId?: string } | null,
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
     const user = client.data.user;
     if (!user) return;
 
-    const { messageId, roomId } = data;
+    const messageId = data?.messageId;
+    const roomId = data?.roomId;
     if (!messageId || !roomId) return;
 
-    const participation = await this.prisma.roomParticipant.findFirst({
-      where: { roomId, userId: user.sub, leftAt: null },
-    });
-    if (!participation) return;
+    try {
+      const participation = await this.prisma.roomParticipant.findFirst({
+        where: { roomId, userId: user.sub, leftAt: null },
+      });
+      if (!participation) return;
 
-    const message = await this.prisma.message.findFirst({
-      where: { id: messageId, roomId },
-    });
-    if (!message || message.senderId === user.sub) return;
+      const message = await this.prisma.message.findFirst({
+        where: { id: messageId, roomId },
+      });
+      if (!message || message.senderId === user.sub) return;
 
-    this.server.to(`user:${message.senderId}`).emit(WsEvents.MESSAGE_STATUS, {
-      messageId,
-      status: 'delivered',
-      deliveredTo: user.sub,
-    });
+      this.server.to(`user:${message.senderId}`).emit(WsEvents.MESSAGE_STATUS, {
+        messageId,
+        status: 'delivered',
+        deliveredTo: user.sub,
+      });
+    } catch (err: any) {
+      this.logger.warn(`message:delivered 실패: ${err?.message}`);
+    }
   }
 }

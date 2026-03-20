@@ -61,25 +61,26 @@ cd app/android && ./gradlew clean
 ```
 ringtalk/
 ├── .github/
-│   └── workflows/
-│       └── ci.yml          # GitHub Actions CI
+│   ├── workflows/
+│   │   └── ci.yml                 # GitHub Actions CI
+│   └── pull_request_template.md   # PR 자동 템플릿
 ├── app/                    # Flutter — iOS / Android / Windows / macOS / Web
 │   ├── lib/
 │   │   ├── core/
 │   │   │   ├── constants/   (앱 상수, API 엔드포인트, WS 이벤트)
 │   │   │   ├── models/      (Auth, User, Chat, Api Dart 모델)
-│   │   │   ├── network/     (Dio HTTP, Socket.IO + access token 인증)
-│   │   │   ├── router/      (go_router, 인증 리다이렉트)
+│   │   │   ├── network/     (Dio HTTP, Socket.IO + onConnect 콜백 큐)
+│   │   │   ├── router/      (go_router, _AuthNotifier + refreshListenable)
 │   │   │   ├── storage/     (flutter_secure_storage)
 │   │   │   ├── theme/       (AppColors, AppColorsDark, AppTheme)
-│   │   │   └── utils/       (phone_utils, contact_hash_utils, date_utils)
+│   │   │   └── utils/       (phone_utils, contact_hash_utils, date_utils, responsive)
 │   │   ├── features/
 │   │   │   ├── auth/        (screens/, widgets/)
 │   │   │   ├── chat/        (data/, providers/, screens/, widgets/)
 │   │   │   ├── contacts/    (연락처 동기화)
 │   │   │   ├── friends/     (친구 목록)
 │   │   │   └── settings/    (설정)
-│   │   └── shared/widgets/  (MainShell 탭 네비게이션)
+│   │   └── shared/widgets/  (MainShell 탭 네비게이션, DesktopChatLayout 2-패널)
 │   └── pubspec.yaml
 ├── server/                 # NestJS API 서버
 │   ├── src/
@@ -317,7 +318,7 @@ pnpm add multer @types/multer -D
 ## CI (GitHub Actions)
 
 ```
-PR / push → main, develop
+PR / push → main, dev
     │
     ├── 🖥 server-check
     │     pnpm install → prisma generate → tsc shared → tsc server
@@ -369,14 +370,27 @@ PR / push → main, develop
 - [x] **1:1 채팅방 생성** — `POST /chats/direct` (participants 유니크, 친구 관계 검증)
 - [x] **채팅 목록** — `GET /chats` (최근 메시지, 안 읽음 뱃지, roomId 기반 화면)
 
-### ✅ 3주차: 실시간 메시징 + ACK/읽음
+### ✅ 3주차: 실시간 메시징 + ACK/읽음 + 반응형 레이아웃
 
 - [x] **Socket.IO 게이트웨이 + JWT 인증** — handshake 시 `auth.accessToken` 검증, 세션 확인
-- [x] **Flutter WS 인증** — SocketService, MainShell connect / SettingsScreen disconnect
+- [x] **Flutter WS 인증** — SocketService, MainShell connect / dispose disconnect
 - [x] **`message:send` / `message:new` / `message:status` 이벤트** — DB 저장, room 브로드캐스트, 낙관적 업데이트
 - [x] **`clientMessageId` 낙관적 업데이트** — message:new에 clientMessageId 포함, 발신자 중복 방지
 - [x] **읽음 처리 (`lastReadMessageId`)** — `chat.read` 이벤트, `MessageReadReceipt` DB 저장, `lastReadAt` 갱신, room 브로드캐스트, 채팅 목록 unreadCount 즉시 초기화
 - [x] **전송 실패 재시도 UX** — 10초 타임아웃 → `failed` 상태, 말풍선 빨간 테두리 + 재전송 버튼
+- [x] **반응형 레이아웃** — `Responsive` 유틸리티, mobile(`<600`) / tablet(`600~999`) / desktop(`≥1000`) 브레이크포인트
+- [x] **데스크톱 2-패널 레이아웃** — `DesktopChatLayout` (채팅 목록 + 채팅방 동시 표시)
+- [x] **NavigationRail (태블릿/PC)** — `MainShell`이 너비에 따라 BottomNavigationBar ↔ NavigationRail 자동 전환
+
+#### 🔧 안정성 리팩토링 (3주차 후속)
+
+- [x] **소켓 race condition 수정** — `SocketService`에 `onConnectCallbacks` 큐 추가, `ChatRoomNotifier` / `RoomsNotifier` 모두 소켓 미연결 시 onConnect 후 자동 재구독
+- [x] **GoRouter 단일 인스턴스** — `_AuthNotifier + refreshListenable` 패턴, 인증 상태 변화 시 GoRouter 재생성 방지
+- [x] **`RoomsNotifier` 실시간 구독** — `message:new` 소켓 이벤트 구독, 채팅 목록 `lastMessage` / `unreadCount` 실시간 반영
+- [x] **메모리 누수 수정** — `then()` 콜백 내 `mounted` 체크, `dispose()` 시 소켓 리스너 `off()` + timer 취소
+- [x] **자동 스크롤** — `ref.listen` 기반, 하단(80px 이내) 위치 시 새 메시지 도착에 자동 스크롤
+- [x] **`_buildOptions()` 수정** — cascade(`..`) 오류 → 메서드 체이닝(`.`)으로 `Map<String, dynamic>` 올바르게 반환
+- [x] **`.gitignore` 정리** — React Native / Expo / Tauri 관련 항목 제거 (Flutter 전용 프로젝트)
 
 ### 4주차: 첨부 파일 업로드 (Pre-signed)
 
@@ -487,8 +501,9 @@ socket.on('authenticated', (data) => console.log('인증 완료:', data.userId))
 
 **Flutter 클라이언트**
 - `SocketService` — access token으로 연결, `NetworkUrls.socketBase` 사용
-- MainShell 진입 시 `connect()`, 로그아웃 시 `disconnect()`
-- `socket_provider.dart` — Riverpod Provider
+- `MainShell.initState()`에서 `connect()`, `dispose()`에서 `disconnect()` (메모리 누수 방지)
+- `onConnectCallbacks` 큐 — 소켓 미연결 시 구독 대기, 연결 완료 후 자동 실행 (race condition 대응)
+- `socket_provider.dart` — Riverpod Provider (앱 수명 동안 단일 인스턴스)
 
 ---
 

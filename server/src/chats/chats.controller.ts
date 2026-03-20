@@ -30,6 +30,9 @@ export class ChatsController {
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
   ) {
-    return this.messages.getMessages(roomId, user.sub, cursor, limit ? parseInt(limit, 10) : 50);
+    // parseInt('abc') → NaN 방어: 숫자가 아니면 기본값 50 사용
+    const parsed = limit ? parseInt(limit, 10) : 50;
+    const limitNum = Number.isFinite(parsed) && parsed > 0 ? parsed : 50;
+    return this.messages.getMessages(roomId, user.sub, cursor, limitNum);
   }
 }
