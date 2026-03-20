@@ -38,6 +38,7 @@ class ChatRoomNotifier extends StateNotifier<ChatRoomState> {
   final String roomId;
   void Function(dynamic)? _messageNewHandler;
   void Function(dynamic)? _messageStatusHandler;
+  void Function(dynamic)? _chatReadHandler;
 
   ChatRoomNotifier(this._ref, this.roomId) : super(const ChatRoomState()) {
     loadMessages();
@@ -63,6 +64,9 @@ class ChatRoomNotifier extends StateNotifier<ChatRoomState> {
     if (socket == null) return;
 
     socket.emit(WsEvents.roomJoin, {'roomId': roomId});
+
+    // 채팅방 진입 시 읽음 처리
+    socket.emit(WsEvents.chatRead, {'roomId': roomId});
 
     _messageNewHandler = (data) {
       if (data is! Map) return;
@@ -124,6 +128,38 @@ class ChatRoomNotifier extends StateNotifier<ChatRoomState> {
       }
     };
     socket.on(WsEvents.messageStatus, _messageStatusHandler!);
+
+    // chat.read: 상대방이 읽었을 때 → 내가 보낸 메시지를 read 상태로 업데이트
+    _chatReadHandler = (data) {
+      if (data is! Map) return;
+      final payload = WsChatRead.fromJson(Map<String, dynamic>.from(data));
+      if (payload.roomId != roomId) return;
+
+      AuthStorage.getUserId().then((myUserId) {
+        if (myUserId == null || payload.userId == myUserId) return;
+
+        final receipt = MessageReadReceipt(
+          userId: payload.userId,
+          readAt: payload.readAt,
+        );
+
+        state = state.copyWith(
+          messages: state.messages.map((m) {
+            if (m.senderId != myUserId) return m;
+            // readAt 이전에 생성된 내 메시지 → read 처리
+            if (!m.createdAt.isBefore(payload.readAt)) return m;
+            // 이미 해당 userId의 읽음이 있으면 스킵
+            if (m.readBy.any((r) => r.userId == payload.userId)) return m;
+
+            return m.copyWith(
+              status: MessageStatus.read,
+              readBy: [...m.readBy, receipt],
+            );
+          }).toList(),
+        );
+      });
+    };
+    socket.on(WsEvents.chatRead, _chatReadHandler!);
   }
 
   Future<void> sendMessage(String content) async {
@@ -207,6 +243,7 @@ class ChatRoomNotifier extends StateNotifier<ChatRoomState> {
     if (socket != null) {
       if (_messageNewHandler != null) socket.off(WsEvents.messageNew, _messageNewHandler!);
       if (_messageStatusHandler != null) socket.off(WsEvents.messageStatus, _messageStatusHandler!);
+      if (_chatReadHandler != null) socket.off(WsEvents.chatRead, _chatReadHandler!);
       socket.emit(WsEvents.roomLeave, {'roomId': roomId});
     }
     super.dispose();
