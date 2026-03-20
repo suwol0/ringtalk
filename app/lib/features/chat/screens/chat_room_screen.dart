@@ -29,10 +29,16 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
   String? _myUserId;
   final _scrollController = ScrollController();
 
+  /// 이전 메시지 수 (자동 스크롤 판단에 사용)
+  int _prevMessageCount = 0;
+
   @override
   void initState() {
     super.initState();
-    AuthStorage.getUserId().then((id) => setState(() => _myUserId = id));
+    AuthStorage.getUserId().then((id) {
+      if (!mounted) return;
+      setState(() => _myUserId = id);
+    });
   }
 
   @override
@@ -49,10 +55,36 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     ref.read(chatRoomProvider(widget.roomId).notifier).retryMessage(clientTempId);
   }
 
+  /// 스크롤이 하단에 있는지 여부 (reverse: true이므로 offset 0이 최하단)
+  bool get _isAtBottom {
+    if (!_scrollController.hasClients) return true;
+    return _scrollController.offset <= 80;
+  }
+
+  void _scrollToBottom() {
+    if (!_scrollController.hasClients) return;
+    _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(chatRoomProvider(widget.roomId));
     final myUserId = _myUserId ?? '';
+
+    // 새 메시지 도착 시 하단에 있으면 자동 스크롤
+    final currentCount = state.messages.length;
+    if (currentCount > _prevMessageCount && _isAtBottom) {
+      _prevMessageCount = currentCount;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _scrollToBottom();
+      });
+    } else {
+      _prevMessageCount = currentCount;
+    }
 
     return Scaffold(
       backgroundColor: AppColors.bgDefault,
@@ -62,24 +94,12 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
         scrolledUnderElevation: 1,
         title: Text(
           widget.displayName ?? '채팅',
-          style: const TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 17,
-          ),
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 17),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.videocam_rounded),
-            onPressed: () {},
-          ),
-          IconButton(
-            icon: const Icon(Icons.call_rounded),
-            onPressed: () {},
-          ),
-          IconButton(
-            icon: const Icon(Icons.more_vert_rounded),
-            onPressed: () {},
-          ),
+          IconButton(icon: const Icon(Icons.videocam_rounded), onPressed: () {}),
+          IconButton(icon: const Icon(Icons.call_rounded), onPressed: () {}),
+          IconButton(icon: const Icon(Icons.more_vert_rounded), onPressed: () {}),
         ],
       ),
       body: Center(
@@ -87,13 +107,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
           constraints: const BoxConstraints(maxWidth: Responsive.chatRoomMaxWidth),
           child: Column(
             children: [
-              Expanded(
-                child: _buildBody(state, myUserId),
-              ),
-              ChatInputBar(
-                onSend: _send,
-                enabled: _myUserId != null,
-              ),
+              Expanded(child: _buildBody(state, myUserId)),
+              ChatInputBar(onSend: _send, enabled: _myUserId != null),
             ],
           ),
         ),
@@ -103,9 +118,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
 
   Widget _buildBody(ChatRoomState state, String myUserId) {
     if (state.isLoading && state.messages.isEmpty) {
-      return const Center(
-        child: CircularProgressIndicator(color: AppColors.primary),
-      );
+      return const Center(child: CircularProgressIndicator(color: AppColors.primary));
     }
     if (state.errorMessage != null && state.messages.isEmpty) {
       return Center(
@@ -114,24 +127,16 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                Icons.error_outline_rounded,
-                size: 48,
-                color: AppColors.textSecondary.withValues(alpha: 0.6),
-              ),
+              Icon(Icons.error_outline_rounded, size: 48, color: AppColors.textSecondary.withValues(alpha: 0.6)),
               const SizedBox(height: 16),
               Text(
                 state.errorMessage!,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 15,
-                ),
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: 15),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 20),
               FilledButton.icon(
-                onPressed: () =>
-                    ref.read(chatRoomProvider(widget.roomId).notifier).loadMessages(),
+                onPressed: () => ref.read(chatRoomProvider(widget.roomId).notifier).loadMessages(),
                 icon: const Icon(Icons.refresh_rounded, size: 20),
                 label: const Text('다시 시도'),
                 style: FilledButton.styleFrom(
@@ -144,9 +149,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
         ),
       );
     }
-    if (state.messages.isEmpty) {
-      return _buildEmptyState();
-    }
+    if (state.messages.isEmpty) return _buildEmptyState();
 
     final items = _buildMessageList(state.messages, myUserId);
     return ListView.builder(
@@ -163,18 +166,11 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.chat_bubble_outline_rounded,
-            size: 64,
-            color: AppColors.textDisabled.withValues(alpha: 0.5),
-          ),
+          Icon(Icons.chat_bubble_outline_rounded, size: 64, color: AppColors.textDisabled.withValues(alpha: 0.5)),
           const SizedBox(height: 16),
           Text(
             '메시지를 입력해서 대화를 시작해보세요',
-            style: TextStyle(
-              color: AppColors.textSecondary.withValues(alpha: 0.8),
-              fontSize: 15,
-            ),
+            style: TextStyle(color: AppColors.textSecondary.withValues(alpha: 0.8), fontSize: 15),
           ),
         ],
       ),
