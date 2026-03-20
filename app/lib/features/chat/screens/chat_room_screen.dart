@@ -29,9 +29,6 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
   String? _myUserId;
   final _scrollController = ScrollController();
 
-  /// 이전 메시지 수 (자동 스크롤 판단에 사용)
-  int _prevMessageCount = 0;
-
   @override
   void initState() {
     super.initState();
@@ -75,16 +72,15 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     final state = ref.watch(chatRoomProvider(widget.roomId));
     final myUserId = _myUserId ?? '';
 
-    // 새 메시지 도착 시 하단에 있으면 자동 스크롤
-    final currentCount = state.messages.length;
-    if (currentCount > _prevMessageCount && _isAtBottom) {
-      _prevMessageCount = currentCount;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _scrollToBottom();
-      });
-    } else {
-      _prevMessageCount = currentCount;
-    }
+    // 새 메시지 도착 시 스크롤이 하단이면 자동 스크롤
+    // build() 내 변수 직접 수정 대신 ref.listen 사용 (안전한 패턴)
+    ref.listen<ChatRoomState>(chatRoomProvider(widget.roomId), (prev, next) {
+      if ((prev?.messages.length ?? 0) < next.messages.length && _isAtBottom) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _scrollToBottom();
+        });
+      }
+    });
 
     return Scaffold(
       backgroundColor: AppColors.bgDefault,
