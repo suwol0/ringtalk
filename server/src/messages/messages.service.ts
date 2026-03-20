@@ -150,11 +150,16 @@ export class MessagesService {
 
   /**
    * 읽음 처리 (chat.read 이벤트)
+   * - lastReadMessageId 기준: 해당 메시지까지만 읽음 처리 (없으면 전체)
    * - RoomParticipant.lastReadAt 갱신
    * - 내가 읽지 않은 메시지에 MessageReadReceipt upsert
    * - 읽힌 메시지들의 senderId 목록 반환 (발신자에게 알림 전송용)
    */
-  async markRead(roomId: string, userId: string): Promise<{ readAt: Date; senderIds: string[] }> {
+  async markRead(
+    roomId: string,
+    userId: string,
+    lastReadMessageId?: string,
+  ): Promise<{ readAt: Date; senderIds: string[]; lastReadMessageId?: string }> {
     const participation = await this.prisma.roomParticipant.findFirst({
       where: { roomId, userId, leftAt: null },
     });
@@ -165,19 +170,35 @@ export class MessagesService {
       });
     }
 
+    // lastReadMessageId 기준 메시지의 createdAt 조회
+    let readUntil: Date = new Date();
+    let resolvedLastReadMessageId = lastReadMessageId;
+
+    if (lastReadMessageId) {
+      const targetMessage = await this.prisma.message.findFirst({
+        where: { id: lastReadMessageId, roomId },
+        select: { id: true, createdAt: true },
+      });
+      if (targetMessage) {
+        readUntil = targetMessage.createdAt;
+        resolvedLastReadMessageId = targetMessage.id;
+      }
+    }
+
     const readAt = new Date();
 
     // lastReadAt 갱신
     await this.prisma.roomParticipant.update({
       where: { roomId_userId: { roomId, userId } },
-      data: { lastReadAt: readAt },
+      data: { lastReadAt: readUntil },
     });
 
-    // 내가 보내지 않은 메시지 중 아직 readReceipt가 없는 것들 조회
+    // 내가 보내지 않은 메시지 중 readUntil 이전이며 readReceipt 없는 것들 조회
     const unreadMessages = await this.prisma.message.findMany({
       where: {
         roomId,
         senderId: { not: userId },
+        createdAt: { lte: readUntil },
         readReceipts: { none: { userId } },
       },
       select: { id: true, senderId: true },
@@ -195,7 +216,7 @@ export class MessagesService {
     }
 
     const senderIds = [...new Set(unreadMessages.map((m) => m.senderId))];
-    return { readAt, senderIds };
+    return { readAt, senderIds, lastReadMessageId: resolvedLastReadMessageId };
   }
 
   private _formatMessage(msg: any) {
