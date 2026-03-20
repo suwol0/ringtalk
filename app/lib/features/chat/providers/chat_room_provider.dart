@@ -146,7 +146,11 @@ class ChatRoomNotifier extends StateNotifier<ChatRoomState> {
         );
 
         if (!isFromMe) {
-          socket.emit(WsEvents.messageDelivered, {'messageId': msg.id, 'roomId': roomId});
+          // 클로저에 캡처된 오래된 socket 대신 현재 소켓 사용 (재연결 대비)
+          _ref.read(socketServiceProvider).socket?.emit(
+            WsEvents.messageDelivered,
+            {'messageId': msg.id, 'roomId': roomId},
+          );
           _emitMarkRead();
         }
       });
