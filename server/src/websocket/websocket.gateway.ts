@@ -189,6 +189,45 @@ export class WebSocketGatewayService
     }
   }
 
+  @SubscribeMessage(WsEvents.CHAT_READ)
+  async handleChatRead(
+    @MessageBody() data: { roomId: string },
+    @ConnectedSocket() client: AuthenticatedSocket,
+  ) {
+    const user = client.data.user;
+    if (!user) return;
+
+    const { roomId } = data;
+    if (!roomId) return;
+
+    try {
+      const { readAt, senderIds } = await this.messages.markRead(roomId, user.sub);
+
+      // 방 전체에 읽음 브로드캐스트 (누가, 언제 읽었는지)
+      this.server.to(ROOM_PREFIX + roomId).emit(WsEvents.CHAT_READ, {
+        roomId,
+        userId: user.sub,
+        readAt: readAt.toISOString(),
+      });
+
+      // 발신자들 개인 소켓에도 전달 (다른 기기 탭 등 대비)
+      for (const senderId of senderIds) {
+        if (senderId !== user.sub) {
+          this.server.to(`user:${senderId}`).emit(WsEvents.MESSAGE_STATUS, {
+            roomId,
+            readBy: user.sub,
+            status: 'read',
+            readAt: readAt.toISOString(),
+          });
+        }
+      }
+
+      this.logger.debug(`chat.read userId=${user.sub} roomId=${roomId} msgs=${senderIds.length}`);
+    } catch (err: any) {
+      this.logger.warn(`chat.read 실패: ${err?.message}`);
+    }
+  }
+
   @SubscribeMessage(WsEvents.MESSAGE_DELIVERED)
   async handleMessageDelivered(
     @MessageBody() data: { messageId: string; roomId: string },
