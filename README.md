@@ -392,39 +392,76 @@ PR / push → main, dev
 - [x] **`_buildOptions()` 수정** — cascade(`..`) 오류 → 메서드 체이닝(`.`)으로 `Map<String, dynamic>` 올바르게 반환
 - [x] **`.gitignore` 정리** — React Native / Expo / Tauri 관련 항목 제거 (Flutter 전용 프로젝트)
 
+### 🚨 당장 해야 하는 것 (P0 — 보안/기능 크리티컬)
+
+- [ ] **로그아웃 시 서버 API 호출** — `settings_screen.dart`가 `AuthStorage.clear()`만 하고 `POST /auth/logout`을 호출하지 않아 서버 세션이 잔존 (보안)
+- [ ] **프로필 설정 API 연동** — `profile_setup_screen.dart`의 이름 입력이 `Future.delayed`만 하고 `PATCH /users/me` 미호출 → 신규 유저 이름이 저장되지 않음
+- [ ] **설정 화면 메뉴 연동** — "프로필 편집", "로그인된 기기(`GET /auth/sessions`)", "알림", "개인정보 보호" 전부 빈 `onTap: () {}`
+- [ ] **토큰 만료 감지** — `isAuthenticated()`가 토큰 존재 여부만 확인하고 만료 체크를 안 해 만료 토큰으로 WS 연결 시도 → 재연결 로직 없음
+- [ ] **OTP 실제 SMS 발송** — `OTP_MOCK=true` 환경에서만 동작, Twilio 미연동 → 프로덕션 배포 불가
+
+---
+
+### 🟠 단기 (P1 — UX/안정성)
+
+- [ ] **메시지 무한 스크롤** — `MessagesRepository`에 `cursor/limit` 파라미터 있고 서버도 구현됐지만, 스크롤 상단 도달 시 이전 메시지 로드 미구현
+- [ ] **채팅방 AppBar 빈 버튼 처리** — 영상통화·음성통화 버튼 비활성화 또는 숨김, 더보기 버튼에 "알림 끄기 / 채팅방 나가기" 메뉴 추가
+- [ ] **설정 화면 실제 프로필 표시** — 현재 이름·사진 전부 하드코딩, `GET /users/me`로 실제 유저 정보 표시
+- [ ] **`unreadCount` 정확한 쿼리** — 현재 `lastMessage` 시간 비교로 0 또는 1만 반환, `MessageReadReceipt` 기반 정확한 카운트 필요
+- [ ] **Presence(온라인 상태) 구현** — 서버가 모든 유저를 `'offline'`으로 하드코딩, `user:presence` WS 이벤트 실구현
+- [ ] **토큰 갱신 후 WS 재연결** — Dio 인터셉터가 401 처리 시 `socketService.reconnect()` 미호출 → WS가 만료 토큰 상태 유지
+- [ ] **채팅 목록 스켈레톤 UI** — `friends_screen`은 스켈레톤 있지만 `chat_list_screen`은 스피너만 사용
+- [ ] **CI `--frozen-lockfile` 적용** — 현재 `--no-frozen-lockfile`로 의존성 버전 불일치 가능
+- [ ] **CI 서버 단위 테스트 추가** — 현재 TypeScript 타입 체크만, NestJS `jest` 테스트 단계 없음
+
+---
+
 ### 4주차: 첨부 파일 업로드 (Pre-signed)
 
-- [ ] `POST /attachments/presign` → S3 Pre-signed URL
-- [ ] 클라이언트 직접 업로드
+- [ ] `POST /media/presign` → S3 Pre-signed URL 발급
+- [ ] 클라이언트 직접 업로드 (서버 경유 없음)
 - [ ] 이미지 썸네일 (클라 리사이징)
-- [ ] 파일 검증 (확장자 / 사이즈)
+- [ ] 파일 검증 (확장자 / 사이즈 / MIME)
+- [ ] `ChatInputBar`에 미디어 첨부 버튼 추가
 
 ### 5주차: 동영상 + 전송 품질
 
 - [ ] 업로드 진행률 UI
 - [ ] 동영상 썸네일 추출
-- [ ] 오프라인 메시지 큐
+- [ ] 오프라인 메시지 큐 (네트워크 복구 후 자동 전송)
+- [ ] WS 재연결 후 `room:join` 자동 재emit
 
 ### 6주차: 푸시 알림 + 멀티 디바이스 동기화
 
 - [ ] FCM (Android) / APNs (iOS) 연동
-- [ ] `POST /devices/register`
 - [ ] 포그라운드/백그라운드 알림 분기
-- [ ] 커서 기반 동기화 API
+- [ ] 커서 기반 메시지 동기화 API
+- [ ] 멀티 디바이스 읽음 동기화
 
-### 7주차: 운영 필수 + UI 마감
+### 7주차: 기능 확장
 
-- [ ] 차단 관계 + 메시지/알림 차단
+- [ ] 그룹 채팅 생성 (`RoomType.group` 스키마 존재)
+- [ ] 메시지 삭제 (`isDeleted`, `deletedFor` 스키마 존재, API/UI 없음)
+- [ ] 친구 요청/수락 플로우 (`FriendStatus.pending` 스키마 존재, 현재 즉시 accepted)
+- [ ] 차단 기능 UI (`POST /users/:id/block` API 존재, Flutter 미연동)
+- [ ] 친구 별명(alias) 변경 (`Friend.alias` 스키마 존재)
+- [ ] 프로필 사진 업로드
+
+### 8주차: 운영 필수 + UI 마감
+
 - [ ] 메시지 전송 Rate Limit
 - [ ] Bubble, Timestamp, 읽음 뱃지 UI polish
 - [ ] 에러 토스트 / 리트라이 UX
+- [ ] `OtpRecord` DB 테이블 활용 또는 정리 (현재 Redis만 사용)
+- [ ] OTP Twilio 실 SMS 발송 연동
 
-### 8주차: 안정화 + 릴리즈 패키징
+### 9주차: 안정화 + 릴리즈 패키징
 
-- [ ] WS 재연결, 중복 메시지, 순서 엣지케이스
 - [ ] 메시지 리스트 가상화 (`flutter_list_view`)
 - [ ] Sentry 연동 (Flutter + NestJS)
 - [ ] Android / iOS 스토어 빌드 서명
+- [ ] iOS 빌드 CI 잡 추가
+- [ ] 서버 Docker 이미지 빌드 + CD 파이프라인
 
 ---
 
