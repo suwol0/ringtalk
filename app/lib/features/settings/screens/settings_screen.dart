@@ -58,13 +58,13 @@ class SettingsScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('내 프로필', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+                      Text('내 프로필', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: AppColors.textPrimary)),
                       SizedBox(height: 2),
                       Text('상태 메시지를 설정해 보세요', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
                     ],
                   ),
                 ),
-                Icon(Icons.chevron_right, color: AppColors.textDisabled),
+                Icon(Icons.chevron_right, color: AppColors.textSecondary),
               ],
             ),
           ),
@@ -121,7 +121,7 @@ class _Section extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Text(
             title.toUpperCase(),
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textSecondary, letterSpacing: 0.6),
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.primaryDeep, letterSpacing: 1.0),
           ),
         ),
         Container(
@@ -132,12 +132,12 @@ class _Section extends StatelessWidget {
                 leading: Container(
                   width: 36,
                   height: 36,
-                  decoration: BoxDecoration(color: AppColors.surfaceSubtle, borderRadius: BorderRadius.circular(8)),
+                  decoration: BoxDecoration(color: AppColors.primarySurface, borderRadius: BorderRadius.circular(8)),
                   child: Icon(item.icon, color: AppColors.primary, size: 20),
                 ),
-                title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 15)),
+                title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: AppColors.textPrimary)),
                 subtitle: Text(item.subtitle, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                trailing: const Icon(Icons.chevron_right, color: AppColors.textDisabled),
+                trailing: const Icon(Icons.chevron_right, color: AppColors.textSecondary),
                 onTap: () {},
               ),
               const Divider(indent: 68, height: 0),
