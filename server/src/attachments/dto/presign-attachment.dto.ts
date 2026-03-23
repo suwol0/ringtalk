@@ -14,7 +14,7 @@ export type AllowedContentType = (typeof ALLOWED_CONTENT_TYPES)[number];
 
 const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100 MB
 
-export class GetUploadUrlDto {
+export class PresignAttachmentDto {
   @IsString()
   @IsNotEmpty()
   fileName!: string;
