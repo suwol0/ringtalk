@@ -50,8 +50,8 @@ abstract class ApiEndpoints {
   static const chatsDirect = '/chats/direct';
   static String chatMessages(String id) => '/chats/$id/messages';
 
-  // 미디어 업로드
-  static const uploadPresign = '/upload/presign';
+  // 첨부파일 업로드 (S3 Presigned URL)
+  static const attachmentsPresign = '/attachments/presign';
 }
 
 /// 네트워크 기본 URL (API_URL에서 origin 추출)

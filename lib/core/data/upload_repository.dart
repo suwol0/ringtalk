@@ -34,7 +34,7 @@ class AllowedContentType {
 /// S3 presigned URL을 통한 파일 업로드 레포지토리
 ///
 /// 흐름:
-///   1. 서버에 presigned PUT URL 요청 (POST /upload/presign)
+///   1. 서버에 presigned PUT URL 요청 (POST /attachments/presign)
 ///   2. 반환된 uploadUrl로 S3에 직접 PUT 업로드
 ///   3. fileUrl 반환 (메시지 전송 시 사용)
 class UploadRepository {
@@ -50,7 +50,7 @@ class UploadRepository {
   }) async {
     // 1. 서버에서 Presigned URL 발급
     final presignRes = await apiClient.post(
-      ApiEndpoints.uploadPresign,
+      ApiEndpoints.attachmentsPresign,
       data: {
         'fileName': fileName,
         'contentType': contentType,
