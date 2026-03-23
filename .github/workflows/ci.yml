@@ -73,19 +73,15 @@ jobs:
           cache: true
 
       - name: Create .env placeholder
-        working-directory: app
         run: touch .env
 
       - name: Get Flutter dependencies
-        working-directory: app
         run: flutter pub get
 
       - name: Flutter analyze
-        working-directory: app
         run: flutter analyze --no-fatal-infos
 
       - name: Flutter test
-        working-directory: app
         run: flutter test
 
   # ─────────────────────────────────────────────────────────────
@@ -116,27 +112,24 @@ jobs:
           cache: true
 
       - name: Create .env placeholder
-        working-directory: app
         run: touch .env
 
       - name: Create local.properties
-        working-directory: app/android
+        working-directory: android
         run: |
           FLUTTER_ROOT=$(dirname $(dirname $(which flutter)))
           echo "flutter.sdk=$FLUTTER_ROOT" > local.properties
           echo "sdk.dir=$ANDROID_HOME" >> local.properties
 
       - name: Get Flutter dependencies
-        working-directory: app
         run: flutter pub get
 
       - name: Build Android APK (debug)
-        working-directory: app
         run: flutter build apk --debug --no-pub
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: ringtalk-debug-${{ github.sha }}
-          path: app/build/app/outputs/flutter-apk/app-debug.apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
           retention-days: 7

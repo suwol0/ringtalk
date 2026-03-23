@@ -41,8 +41,18 @@ Thumbs.db
 *.jks
 *.keystore
 
-# Flutter iOS 빌드 산출물
-ios/
+# Flutter — Android 머신 고유 파일 및 Gradle 캐시
+android/local.properties
+android/.gradle/
+
+# Flutter — iOS CocoaPods 및 빌드 산출물
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+
+# Flutter — 생성된 플러그인 등록 파일
+android/app/src/main/java/io/flutter/plugins/
 
 # Prisma
 prisma/migrations/

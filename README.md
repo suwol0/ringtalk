@@ -29,18 +29,6 @@
 
 ---
 
-## ⚠️ 명령어 실행 위치 (중요)
-
-**`messenger`는 모노레포 루트입니다.** `android/` 폴더가 루트에 없습니다.
-
-| 목적 | 올바른 경로 | 잘못된 예 |
-|------|-------------|-----------|
-| Android (gradlew) | `app/android/` | ~~`android/`~~ (없음) |
-| Flutter 앱 | `app/` | ~~루트~~ |
-| NestJS 서버 | `server/` | ~~루트~~ |
-
----
-
 ## 디렉토리 구조
 
 ```
@@ -50,107 +38,127 @@ ringtalk/
 │   │   └── ci.yml                      # GitHub Actions CI (analyze · build · artifact)
 │   └── pull_request_template.md        # PR 자동 템플릿
 │
-├── app/                                # Flutter — iOS / Android / macOS / Windows / Web
-│   ├── lib/
-│   │   ├── main.dart                   # 앱 진입점 (ProviderScope, ThemeMode.system)
-│   │   │
-│   │   ├── core/
-│   │   │   ├── constants/
-│   │   │   │   └── app_constants.dart  # 앱 상수, API 엔드포인트, WS 이벤트명
-│   │   │   │
-│   │   │   ├── data/
-│   │   │   │   └── upload_repository.dart  # S3 presign 요청 + 직접 PUT 업로드
-│   │   │   │
-│   │   │   ├── models/
-│   │   │   │   ├── api_model.dart      # ApiResponse, ApiError 공통 모델
-│   │   │   │   ├── auth_model.dart     # AuthTokens, RequestOtpRequest, VerifyOtpRequest
-│   │   │   │   ├── chat_model.dart     # ChatRoom, Message, MessageType, MessageStatus
-│   │   │   │   ├── contact_model.dart  # LocalContact, ProcessedContact, RingTalkContact
-│   │   │   │   ├── user_model.dart     # UserProfile, UserStatus
-│   │   │   │   └── models.dart         # 모델 barrel export
-│   │   │   │
-│   │   │   ├── network/
-│   │   │   │   ├── api_client.dart     # Dio HTTP + 401 자동 토큰 갱신 인터셉터
-│   │   │   │   ├── socket_service.dart # Socket.IO 연결·인증·onConnectCallbacks 큐
-│   │   │   │   └── socket_provider.dart # Riverpod Provider (앱 수명 단일 인스턴스)
-│   │   │   │
-│   │   │   ├── router/
-│   │   │   │   └── app_router.dart     # go_router + _AuthNotifier + refreshListenable
-│   │   │   │
-│   │   │   ├── storage/
-│   │   │   │   └── auth_storage.dart   # flutter_secure_storage (토큰·userId·deviceId)
-│   │   │   │
-│   │   │   ├── theme/
-│   │   │   │   ├── app_colors.dart     # 라이트 퍼플 컬러 팔레트
-│   │   │   │   ├── app_colors_dark.dart # 다크 딥퍼플 컬러 팔레트
-│   │   │   │   └── app_theme.dart      # ThemeData light/dark
-│   │   │   │
-│   │   │   └── utils/
-│   │   │       ├── phone_utils.dart    # 전화번호 E.164 정규화
-│   │   │       ├── contact_hash_utils.dart # SHA-256 해시 변환
-│   │   │       ├── date_utils.dart     # 날짜 포맷 (오늘/어제/날짜 구분)
-│   │   │       ├── responsive.dart     # Responsive 유틸 (mobile/tablet/desktop 브레이크포인트)
-│   │   │       └── utils.dart          # OTP 타이머, 전화번호 마스킹 등 공통 유틸
-│   │   │
-│   │   ├── features/
-│   │   │   ├── auth/
-│   │   │   │   ├── screens/
-│   │   │   │   │   ├── welcome_screen.dart      # 시작 화면 (로고 + 시작하기)
-│   │   │   │   │   ├── phone_screen.dart        # 전화번호 입력
-│   │   │   │   │   ├── otp_screen.dart          # OTP 6자리 입력 (ConsumerStatefulWidget)
-│   │   │   │   │   └── profile_setup_screen.dart # 최초 프로필(이름) 설정
-│   │   │   │   └── widgets/
-│   │   │   │       └── terms_modal.dart         # 이용약관·개인정보 동의 모달
-│   │   │   │
-│   │   │   ├── chat/
-│   │   │   │   ├── data/
-│   │   │   │   │   ├── messages_repository.dart # GET /chats/:id/messages (cursor 페이지네이션)
-│   │   │   │   │   └── rooms_repository.dart    # GET /chats, POST /chats/direct
-│   │   │   │   ├── providers/
-│   │   │   │   │   ├── chat_room_provider.dart  # ChatRoomNotifier (메시지 목록, WS 구독, 재시도)
-│   │   │   │   │   └── rooms_provider.dart      # RoomsNotifier (채팅 목록, message:new 실시간)
-│   │   │   │   ├── screens/
-│   │   │   │   │   ├── chat_list_screen.dart    # 채팅 목록 (unread 뱃지, 최근 메시지)
-│   │   │   │   │   └── chat_room_screen.dart    # 채팅방 (메시지 리스트, 자동 스크롤, 업로드)
-│   │   │   │   └── widgets/
-│   │   │   │       ├── chat_input_bar.dart      # 입력창 + 📎 첨부 버튼 (이미지/파일)
-│   │   │   │       ├── chat_room_tile.dart      # 채팅 목록 타일
-│   │   │   │       ├── date_divider.dart        # 날짜 구분선
-│   │   │   │       ├── empty_chats_view.dart    # 채팅 없음 빈 화면
-│   │   │   │       └── message_bubble.dart      # 말풍선 (mine/other, 재시도 버튼, 읽음 상태)
-│   │   │   │
-│   │   │   ├── contacts/
-│   │   │   │   ├── data/
-│   │   │   │   │   └── contacts_repository.dart # 연락처 권한 요청 + POST /contacts/sync
-│   │   │   │   └── providers/
-│   │   │   │       └── contacts_provider.dart   # 연락처 동기화 상태 Provider
-│   │   │   │
-│   │   │   ├── friends/
-│   │   │   │   ├── data/
-│   │   │   │   │   └── friends_repository.dart  # GET /users/me/friends
-│   │   │   │   ├── providers/
-│   │   │   │   │   └── friends_provider.dart    # FriendsNotifier (목록 조회·동기화)
-│   │   │   │   ├── screens/
-│   │   │   │   │   ├── friends_screen.dart      # 친구 목록 화면 (새로고침·동기화 AppBar)
-│   │   │   │   │   └── friend_profile_screen.dart # 친구 프로필 (채팅하기·차단)
-│   │   │   │   └── widgets/
-│   │   │   │       ├── empty_friends_view.dart  # 연락처 동기화 안내 빈 화면
-│   │   │   │       ├── friend_tile.dart         # 친구 타일 (아바타·이름·채팅 버튼)
-│   │   │   │       ├── friends_error_view.dart  # 에러 뷰 (재시도 버튼)
-│   │   │   │       ├── friends_list_content.dart # 친구 목록 리스트 + 당겨서 새로고침
-│   │   │   │       ├── friends_loading_skeleton.dart # 스켈레톤 로딩 UI
-│   │   │   │       └── sync_status_banner.dart  # 동기화 진행·완료·에러 배너
-│   │   │   │
-│   │   │   └── settings/
-│   │   │       └── screens/
-│   │   │           └── settings_screen.dart     # 설정 (프로필 카드·메뉴·로그아웃)
-│   │   │
-│   │   └── shared/
-│   │       └── widgets/
-│   │           ├── main_shell.dart              # 탭 네비게이션 셸 (BottomBar ↔ NavigationRail)
-│   │           └── desktop_chat_layout.dart     # 데스크톱 2-패널 레이아웃
+├── android/                            # Android 네이티브 (Flutter)
+│   ├── app/
+│   │   ├── build.gradle.kts
+│   │   └── src/
+│   │       └── main/
+│   │           ├── AndroidManifest.xml
+│   │           └── kotlin/com/ringtalk/ringtalk/
+│   │               └── MainActivity.kt
+│   ├── build.gradle.kts
+│   └── settings.gradle.kts
+│
+├── ios/                                # iOS 네이티브 (Flutter)
+│   └── Runner/
+│       └── Info.plist                  # 권한 설정 (카메라, 사진, 마이크, 연락처)
+│
+├── lib/                                # Flutter Dart 소스
+│   ├── main.dart                       # 앱 진입점 (ProviderScope, ThemeMode.system)
 │   │
-│   └── pubspec.yaml
+│   ├── core/
+│   │   ├── constants/
+│   │   │   └── app_constants.dart      # 앱 상수, API 엔드포인트, WS 이벤트명
+│   │   │
+│   │   ├── data/
+│   │   │   └── upload_repository.dart  # S3 presign 요청 + 직접 PUT 업로드
+│   │   │
+│   │   ├── models/
+│   │   │   ├── api_model.dart          # ApiResponse, ApiError 공통 모델
+│   │   │   ├── auth_model.dart         # AuthTokens, RequestOtpRequest, VerifyOtpRequest
+│   │   │   ├── chat_model.dart         # ChatRoom, Message, MessageType, MessageStatus
+│   │   │   ├── contact_model.dart      # LocalContact, ProcessedContact, RingTalkContact
+│   │   │   ├── user_model.dart         # UserProfile, UserStatus
+│   │   │   └── models.dart             # 모델 barrel export
+│   │   │
+│   │   ├── network/
+│   │   │   ├── api_client.dart         # Dio HTTP + 401 자동 토큰 갱신 인터셉터
+│   │   │   ├── socket_service.dart     # Socket.IO 연결·인증·onConnectCallbacks 큐
+│   │   │   └── socket_provider.dart    # Riverpod Provider (앱 수명 단일 인스턴스)
+│   │   │
+│   │   ├── router/
+│   │   │   └── app_router.dart         # go_router + _AuthNotifier + refreshListenable
+│   │   │
+│   │   ├── storage/
+│   │   │   └── auth_storage.dart       # flutter_secure_storage (토큰·userId·deviceId)
+│   │   │
+│   │   ├── theme/
+│   │   │   ├── app_colors.dart         # 라이트 퍼플 컬러 팔레트
+│   │   │   ├── app_colors_dark.dart    # 다크 딥퍼플 컬러 팔레트
+│   │   │   └── app_theme.dart          # ThemeData light/dark
+│   │   │
+│   │   └── utils/
+│   │       ├── phone_utils.dart        # 전화번호 E.164 정규화
+│   │       ├── contact_hash_utils.dart # SHA-256 해시 변환
+│   │       ├── date_utils.dart         # 날짜 포맷 (오늘/어제/날짜 구분)
+│   │       ├── responsive.dart         # Responsive 유틸 (mobile/tablet/desktop 브레이크포인트)
+│   │       └── utils.dart              # OTP 타이머, 전화번호 마스킹 등 공통 유틸
+│   │
+│   ├── features/
+│   │   ├── auth/
+│   │   │   ├── screens/
+│   │   │   │   ├── welcome_screen.dart          # 시작 화면 (로고 + 시작하기)
+│   │   │   │   ├── phone_screen.dart            # 전화번호 입력
+│   │   │   │   ├── otp_screen.dart              # OTP 6자리 입력 (ConsumerStatefulWidget)
+│   │   │   │   └── profile_setup_screen.dart    # 최초 프로필(이름) 설정
+│   │   │   └── widgets/
+│   │   │       └── terms_modal.dart             # 이용약관·개인정보 동의 모달
+│   │   │
+│   │   ├── chat/
+│   │   │   ├── data/
+│   │   │   │   ├── messages_repository.dart     # GET /chats/:id/messages (cursor 페이지네이션)
+│   │   │   │   └── rooms_repository.dart        # GET /chats, POST /chats/direct
+│   │   │   ├── providers/
+│   │   │   │   ├── chat_room_provider.dart      # ChatRoomNotifier (메시지 목록, WS 구독, 재시도)
+│   │   │   │   └── rooms_provider.dart          # RoomsNotifier (채팅 목록, message:new 실시간)
+│   │   │   ├── screens/
+│   │   │   │   ├── chat_list_screen.dart        # 채팅 목록 (unread 뱃지, 최근 메시지)
+│   │   │   │   └── chat_room_screen.dart        # 채팅방 (메시지 리스트, 자동 스크롤, 업로드)
+│   │   │   └── widgets/
+│   │   │       ├── chat_input_bar.dart          # 입력창 + 📎 첨부 버튼 (이미지/파일)
+│   │   │       ├── chat_room_tile.dart          # 채팅 목록 타일
+│   │   │       ├── date_divider.dart            # 날짜 구분선
+│   │   │       ├── empty_chats_view.dart        # 채팅 없음 빈 화면
+│   │   │       └── message_bubble.dart          # 말풍선 (mine/other, 재시도 버튼, 읽음 상태)
+│   │   │
+│   │   ├── contacts/
+│   │   │   ├── data/
+│   │   │   │   └── contacts_repository.dart    # 연락처 권한 요청 + POST /contacts/sync
+│   │   │   └── providers/
+│   │   │       └── contacts_provider.dart      # 연락처 동기화 상태 Provider
+│   │   │
+│   │   ├── friends/
+│   │   │   ├── data/
+│   │   │   │   └── friends_repository.dart     # GET /users/me/friends
+│   │   │   ├── providers/
+│   │   │   │   └── friends_provider.dart       # FriendsNotifier (목록 조회·동기화)
+│   │   │   ├── screens/
+│   │   │   │   ├── friends_screen.dart         # 친구 목록 화면 (새로고침·동기화 AppBar)
+│   │   │   │   └── friend_profile_screen.dart  # 친구 프로필 (채팅하기·차단)
+│   │   │   └── widgets/
+│   │   │       ├── empty_friends_view.dart     # 연락처 동기화 안내 빈 화면
+│   │   │       ├── friend_tile.dart            # 친구 타일 (아바타·이름·채팅 버튼)
+│   │   │       ├── friends_error_view.dart     # 에러 뷰 (재시도 버튼)
+│   │   │       ├── friends_list_content.dart   # 친구 목록 리스트 + 당겨서 새로고침
+│   │   │       ├── friends_loading_skeleton.dart # 스켈레톤 로딩 UI
+│   │   │       └── sync_status_banner.dart     # 동기화 진행·완료·에러 배너
+│   │   │
+│   │   └── settings/
+│   │       └── screens/
+│   │           └── settings_screen.dart        # 설정 (프로필 카드·메뉴·로그아웃)
+│   │
+│   └── shared/
+│       └── widgets/
+│           ├── main_shell.dart                 # 탭 네비게이션 셸 (BottomBar ↔ NavigationRail)
+│           └── desktop_chat_layout.dart        # 데스크톱 2-패널 레이아웃
+│
+├── web/                                # Web 플랫폼 설정 (Flutter)
+├── macos/                              # macOS 네이티브 (Flutter)
+├── windows/                            # Windows 네이티브 (Flutter)
+├── assets/
+│   └── images/                         # Flutter 앱 이미지 에셋
+│
+├── pubspec.yaml                        # Flutter 의존성 및 에셋 선언
 │
 ├── server/                             # NestJS REST API 서버
 │   ├── src/
@@ -271,8 +279,8 @@ ringtalk/
 # 서버 + 공유 패키지 (루트에서)
 pnpm install
 
-# Flutter 앱
-cd app && flutter pub get
+# Flutter 앱 (루트에서)
+flutter pub get
 ```
 
 ### 2. 인프라 실행 (DB + Redis)
@@ -350,8 +358,7 @@ pnpm db:generate   # Prisma 클라이언트 재생성
 # NestJS 서버 (server/ 디렉토리에서)
 cd server && pnpm dev          # nest start --watch
 
-# Flutter 앱 (app/ 디렉토리에서)
-cd app
+# Flutter 앱 (루트에서)
 flutter run                    # 연결된 기기/시뮬레이터 자동 선택
 flutter run -d chrome --web-port 8080  # 웹 (Chrome)
 flutter run -d ios             # iOS 시뮬레이터
@@ -385,7 +392,7 @@ flutter run -d windows         # Windows 네이티브
 
 > ⚠️ `permission_handler` + `image_picker` 설치 후 **네이티브 설정 필수**:
 >
-> **Android** — `app/android/app/src/main/AndroidManifest.xml`:
+> **Android** — `android/app/src/main/AndroidManifest.xml`:
 >
 > ```xml
 > <uses-permission android:name="android.permission.READ_CONTACTS"/>
@@ -393,7 +400,7 @@ flutter run -d windows         # Windows 네이티브
 > <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
 > ```
 >
-> **iOS** — `app/ios/Runner/Info.plist`:
+> **iOS** — `ios/Runner/Info.plist`:
 >
 > ```xml
 > <key>NSContactsUsageDescription</key>
