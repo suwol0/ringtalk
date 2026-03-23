@@ -7,7 +7,7 @@ import { ContactsModule } from './contacts/contacts.module';
 import { RoomsModule } from './rooms/rooms.module';
 import { WebSocketModule } from './websocket/websocket.module';
 import { MessagesModule } from './messages/messages.module';
-import { UploadModule } from './upload/upload.module';
+import { AttachmentsModule } from './attachments/attachments.module';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { RedisModule } from './common/redis/redis.module';
 
@@ -45,7 +45,7 @@ import { RedisModule } from './common/redis/redis.module';
     ContactsModule,
     RoomsModule,
     MessagesModule,
-    UploadModule,
+    AttachmentsModule,
     WebSocketModule,
   ],
 })

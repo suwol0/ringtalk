@@ -34,23 +34,25 @@ class AllowedContentType {
 /// S3 presigned URL을 통한 파일 업로드 레포지토리
 ///
 /// 흐름:
-///   1. 서버에 presigned PUT URL 요청 (POST /upload/presign)
+///   1. 서버에 presigned PUT URL 요청 (POST /attachments/presign)
 ///   2. 반환된 uploadUrl로 S3에 직접 PUT 업로드
 ///   3. fileUrl 반환 (메시지 전송 시 사용)
 class UploadRepository {
   /// 파일(바이트) 업로드
   ///
-  /// [bytes]      파일 바이트 (web / File 모두 지원)
-  /// [fileName]   원본 파일명 (확장자 포함)
-  /// [contentType] MIME 타입 ([AllowedContentType] 참고)
+  /// [bytes]        파일 바이트 (web / File 모두 지원)
+  /// [fileName]     원본 파일명 (확장자 포함)
+  /// [contentType]  MIME 타입 ([AllowedContentType] 참고)
+  /// [onProgress]   업로드 진행률 콜백 (0.0 ~ 1.0)
   static Future<UploadResult> uploadBytes({
     required Uint8List bytes,
     required String fileName,
     required String contentType,
+    void Function(double progress)? onProgress,
   }) async {
     // 1. 서버에서 Presigned URL 발급
     final presignRes = await apiClient.post(
-      ApiEndpoints.uploadPresign,
+      ApiEndpoints.attachmentsPresign,
       data: {
         'fileName': fileName,
         'contentType': contentType,
@@ -76,6 +78,11 @@ class UploadRepository {
         // 응답 타입을 plain으로 — S3는 성공 시 빈 body 반환
         responseType: ResponseType.plain,
       ),
+      onSendProgress: onProgress != null
+          ? (sent, total) {
+              if (total > 0) onProgress(sent / total);
+            }
+          : null,
     );
 
     return UploadResult(fileUrl: fileUrl, key: key);

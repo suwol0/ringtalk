@@ -30,6 +30,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
   String? _myUserId;
   final _scrollController = ScrollController();
   bool _isUploading = false;
+  double _uploadProgress = 0.0;
 
   @override
   void initState() {
@@ -56,17 +57,27 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
 
   Future<void> _onAttachment(AttachmentFile file) async {
     if (_isUploading) return;
-    setState(() => _isUploading = true);
+    setState(() {
+      _isUploading = true;
+      _uploadProgress = 0.0;
+    });
 
     try {
       final result = await UploadRepository.uploadBytes(
         bytes: file.bytes,
         fileName: file.fileName,
         contentType: file.contentType,
+        onProgress: (progress) {
+          if (mounted) setState(() => _uploadProgress = progress);
+        },
       );
 
-      // 이미지/동영상이면 image 타입, 그 외 file 타입으로 전송
-      final messageType = UploadRepository.isImage(file.contentType) ? 'image' : 'file';
+      final messageType = UploadRepository.isImage(file.contentType)
+          ? 'image'
+          : UploadRepository.isVideo(file.contentType)
+              ? 'video'
+              : 'file';
+
       ref.read(chatRoomProvider(widget.roomId).notifier).sendMessage(
             result.fileUrl,
             type: messageType,
@@ -137,12 +148,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
           child: Column(
             children: [
               Expanded(child: _buildBody(state, myUserId)),
-              if (_isUploading)
-                const LinearProgressIndicator(
-                  backgroundColor: AppColors.surfaceSubtle,
-                  color: AppColors.primary,
-                  minHeight: 2,
-                ),
+              if (_isUploading) _UploadProgressBar(progress: _uploadProgress),
               ChatInputBar(
                 onSend: _send,
                 onAttachment: _onAttachment,
@@ -239,5 +245,49 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
       );
     }
     return widgets;
+  }
+}
+
+// ─── 업로드 진행률 바 ─────────────────────────────────────────────────────────
+class _UploadProgressBar extends StatelessWidget {
+  const _UploadProgressBar({required this.progress});
+
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final percent = (progress * 100).toInt();
+    return Container(
+      color: AppColors.surfaceDefault,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: progress > 0 ? progress : null,
+                backgroundColor: AppColors.surfaceSubtle,
+                color: AppColors.primary,
+                minHeight: 4,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 36,
+            child: Text(
+              progress > 0 ? '$percent%' : '...',
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.end,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

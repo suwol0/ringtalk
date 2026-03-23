@@ -37,6 +37,9 @@ export class MessagesService {
       ? (type as AllowedMessageType)
       : 'text';
 
+    // 텍스트 타입만 공백 제거 — URL(image/video/file)은 trim하면 안 됨
+    const safeContent = safeType === 'text' ? content.trim() : content;
+
     // 참여자 확인
     const participation = await this.prisma.roomParticipant.findFirst({
       where: { roomId, userId: senderId, leftAt: null },
@@ -77,7 +80,7 @@ export class MessagesService {
           senderId,
           clientMessageId,
           type: safeType,
-          content: content.trim(),
+          content: safeContent,
           mediaUrl: mediaUrl ?? null,
           replyToId: replyToId ?? null,
         },

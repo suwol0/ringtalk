@@ -1,4 +1,6 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/models/chat_model.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -22,6 +24,10 @@ class MessageBubble extends StatelessWidget {
   final bool showStatus;
   /// 전송 실패 시 재시도 콜백 (null이면 버튼 미표시)
   final VoidCallback? onRetry;
+
+  /// 이미지·비디오는 bubble 내부 padding 없이 꽉 채워 렌더링
+  bool get _needsPadding =>
+      message.type != MessageType.image && message.type != MessageType.video;
 
   @override
   Widget build(BuildContext context) {
@@ -62,11 +68,15 @@ class MessageBubble extends StatelessWidget {
                 ],
                 Container(
                   constraints: BoxConstraints(maxWidth: bubbleMaxWidth(context)),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding: _needsPadding
+                      ? const EdgeInsets.symmetric(horizontal: 14, vertical: 10)
+                      : EdgeInsets.zero,
                   decoration: BoxDecoration(
-                    color: isFailed
-                        ? AppColors.error.withValues(alpha: 0.08)
-                        : (isMine ? AppColors.bubbleMine : AppColors.bubbleOther),
+                    color: _needsPadding
+                        ? (isFailed
+                            ? AppColors.error.withValues(alpha: 0.08)
+                            : (isMine ? AppColors.bubbleMine : AppColors.bubbleOther))
+                        : Colors.transparent,
                     borderRadius: BorderRadius.only(
                       topLeft: const Radius.circular(18),
                       topRight: const Radius.circular(18),
@@ -76,13 +86,15 @@ class MessageBubble extends StatelessWidget {
                     border: isFailed
                         ? Border.all(color: AppColors.error.withValues(alpha: 0.4), width: 1)
                         : null,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 4,
-                        offset: const Offset(0, 1),
-                      ),
-                    ],
+                    boxShadow: _needsPadding
+                        ? [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.04),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
+                          ]
+                        : null,
                   ),
                   child: _buildContent(context),
                 ),
@@ -156,38 +168,196 @@ class MessageBubble extends StatelessWidget {
   }
 
   Widget _buildMediaMessage(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (message.mediaUrl != null && message.mediaUrl!.isNotEmpty)
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Image.network(
-              message.mediaUrl!,
-              width: 200,
-              height: 150,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                width: 200,
-                height: 100,
-                color: AppColors.surfaceSubtle,
-                child: const Icon(Icons.broken_image_outlined),
-              ),
+    // 서버에서 content 필드에 S3 URL이 직접 담김
+    final url = message.content.isNotEmpty
+        ? message.content
+        : (message.mediaUrl ?? '');
+
+    switch (message.type) {
+      case MessageType.image:
+        return _buildImageBubble(url);
+      case MessageType.video:
+        return _buildVideoBubble(url);
+      case MessageType.file:
+      case MessageType.audio:
+        return _buildFileTile(context, url);
+      default:
+        return _buildTextMessage(context);
+    }
+  }
+
+  BorderRadius get _bubbleRadius => BorderRadius.only(
+        topLeft: const Radius.circular(18),
+        topRight: const Radius.circular(18),
+        bottomLeft: Radius.circular(isMine ? 18 : 4),
+        bottomRight: Radius.circular(isMine ? 4 : 18),
+      );
+
+  Widget _buildImageBubble(String url) {
+    if (url.isEmpty) {
+      return _buildBrokenImage();
+    }
+    return ClipRRect(
+      borderRadius: _bubbleRadius,
+      child: CachedNetworkImage(
+        imageUrl: url,
+        width: 220,
+        fit: BoxFit.cover,
+        placeholder: (_, __) => Container(
+          width: 220,
+          height: 160,
+          color: AppColors.surfaceSubtle,
+          child: const Center(
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: AppColors.primary,
             ),
           ),
-        if (message.content.isNotEmpty) ...[
-          const SizedBox(height: 6),
-          SelectableText(
-            message.content,
-            style: TextStyle(
-              color: isMine ? AppColors.bubbleMineText : AppColors.bubbleOtherText,
-              fontSize: 14,
+        ),
+        errorWidget: (_, __, ___) => _buildBrokenImage(),
+      ),
+    );
+  }
+
+  Widget _buildVideoBubble(String url) {
+    return ClipRRect(
+      borderRadius: _bubbleRadius,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: 220,
+            height: 140,
+            color: Colors.black87,
+            child: const Icon(Icons.videocam_rounded, color: Colors.white24, size: 52),
+          ),
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: Colors.black54,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white70, width: 2),
             ),
+            child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 32),
           ),
         ],
-      ],
+      ),
     );
+  }
+
+  Widget _buildFileTile(BuildContext context, String url) {
+    final fileName = _fileNameFromUrl(url);
+    final ext = fileName.contains('.') ? fileName.split('.').last.toUpperCase() : 'FILE';
+    final isAudio = message.type == MessageType.audio;
+
+    return GestureDetector(
+      onTap: () => _openUrl(context, url),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 240),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: (isMine ? AppColors.primary : AppColors.surfaceSubtle)
+              .withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: (isMine ? AppColors.primary : AppColors.borderDefault)
+                .withValues(alpha: 0.35),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                isAudio ? Icons.audiotrack_rounded : Icons.insert_drive_file_rounded,
+                color: AppColors.primary,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    fileName,
+                    style: TextStyle(
+                      color: isMine ? AppColors.bubbleMineText : AppColors.textPrimary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    ext,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.download_rounded, color: AppColors.primary, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBrokenImage() {
+    return Container(
+      width: 220,
+      height: 120,
+      decoration: BoxDecoration(
+        color: AppColors.surfaceSubtle,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: const Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.broken_image_outlined, color: AppColors.textDisabled, size: 36),
+          SizedBox(height: 4),
+          Text('이미지를 불러올 수 없어요', style: TextStyle(color: AppColors.textDisabled, fontSize: 12)),
+        ],
+      ),
+    );
+  }
+
+  static String _fileNameFromUrl(String url) {
+    try {
+      final uri = Uri.parse(url);
+      final segments = uri.pathSegments;
+      if (segments.isNotEmpty) {
+        final last = segments.last;
+        // S3 key 형식: attachments/{userId}/{timestamp}-{uuid}.ext
+        // 타임스탬프-uuid 부분 제거하고 확장자만 유지하거나 전체 표시
+        return last;
+      }
+    } catch (_) {}
+    return '첨부파일';
+  }
+
+  static Future<void> _openUrl(BuildContext context, String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('파일을 열 수 없어요.')),
+      );
+    }
   }
 
   Widget _buildSystemMessage(BuildContext context) {

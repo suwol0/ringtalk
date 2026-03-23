@@ -230,11 +230,7 @@ class ChatRoomNotifier extends StateNotifier<ChatRoomState> {
     final myUserId = await AuthStorage.getUserId();
     if (!mounted) return;
 
-    final msgType = type == 'image'
-        ? MessageType.image
-        : type == 'file'
-            ? MessageType.file
-            : MessageType.text;
+    final msgType = _messageTypeFromString(type);
 
     if (myUserId != null) {
       state = state.copyWith(
@@ -298,7 +294,7 @@ class ChatRoomNotifier extends StateNotifier<ChatRoomState> {
       'roomId': roomId,
       'clientMessageId': clientTempId,
       'content': msg.content,
-      'type': 'text',
+      'type': msg.type.name,
     });
 
     _startSendTimer(clientTempId, msg.content);
@@ -326,6 +322,25 @@ class ChatRoomNotifier extends StateNotifier<ChatRoomState> {
         return m;
       }).toList(),
     );
+  }
+
+  // ─── 헬퍼 ────────────────────────────────────────────────────
+
+  static MessageType _messageTypeFromString(String type) {
+    switch (type) {
+      case 'image':
+        return MessageType.image;
+      case 'video':
+        return MessageType.video;
+      case 'file':
+        return MessageType.file;
+      case 'audio':
+        return MessageType.audio;
+      case 'system':
+        return MessageType.system;
+      default:
+        return MessageType.text;
+    }
   }
 
   // ─── dispose ─────────────────────────────────────────────────

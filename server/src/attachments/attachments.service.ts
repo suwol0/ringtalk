@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { randomUUID } from 'crypto';
-import { AllowedContentType } from './dto/get-upload-url.dto';
+import { AllowedContentType } from './dto/presign-attachment.dto';
 
 const PRESIGN_EXPIRES_IN_SECONDS = 5 * 60; // 5분
 
@@ -25,8 +25,8 @@ export interface PresignedUrlResult {
 }
 
 @Injectable()
-export class UploadService {
-  private readonly logger = new Logger(UploadService.name);
+export class AttachmentsService {
+  private readonly logger = new Logger(AttachmentsService.name);
   private readonly s3: S3Client;
   private readonly bucket: string;
   private readonly region: string;
@@ -44,22 +44,28 @@ export class UploadService {
     });
   }
 
-  async getPresignedUrl(
+  /**
+   * S3 Presigned PUT URL 발급
+   *
+   * 클라이언트가 직접 S3에 PUT 업로드할 수 있도록 서명된 URL을 생성한다.
+   * 서버는 파일을 중계하지 않으므로 대용량 파일도 서버 부하 없이 처리 가능.
+   *
+   * S3 Key 구조: attachments/{userId}/{timestamp}-{uuid}.{ext}
+   */
+  async presign(
     userId: string,
     fileName: string,
     contentType: AllowedContentType,
     fileSize: number,
   ): Promise<PresignedUrlResult> {
     const ext = this.resolveExt(fileName, contentType);
-    const key = `uploads/${userId}/${Date.now()}-${randomUUID()}${ext}`;
+    const key = `attachments/${userId}/${Date.now()}-${randomUUID()}${ext}`;
 
     const command = new PutObjectCommand({
       Bucket: this.bucket,
       Key: key,
       ContentType: contentType,
       ContentLength: fileSize,
-      // 클라이언트가 이 헤더를 포함하지 않으면 S3가 요청 거부
-      // → 클라이언트는 PUT 시 Content-Type, Content-Length 반드시 포함
     });
 
     const uploadUrl = await getSignedUrl(this.s3, command, {
@@ -68,7 +74,9 @@ export class UploadService {
 
     const fileUrl = `https://${this.bucket}.s3.${this.region}.amazonaws.com/${key}`;
 
-    this.logger.log(`Presigned URL 발급: userId=${userId}, key=${key}, size=${fileSize}`);
+    this.logger.log(
+      `Presigned URL 발급: userId=${userId}, key=${key}, size=${fileSize}`,
+    );
 
     return {
       uploadUrl,
