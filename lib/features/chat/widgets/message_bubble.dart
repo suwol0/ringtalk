@@ -25,6 +25,10 @@ class MessageBubble extends StatelessWidget {
   /// 전송 실패 시 재시도 콜백 (null이면 버튼 미표시)
   final VoidCallback? onRetry;
 
+  /// 이미지·비디오는 bubble 내부 padding 없이 꽉 채워 렌더링
+  bool get _needsPadding =>
+      message.type != MessageType.image && message.type != MessageType.video;
+
   @override
   Widget build(BuildContext context) {
     final isFailed = message.status == MessageStatus.failed;
@@ -64,11 +68,15 @@ class MessageBubble extends StatelessWidget {
                 ],
                 Container(
                   constraints: BoxConstraints(maxWidth: bubbleMaxWidth(context)),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding: _needsPadding
+                      ? const EdgeInsets.symmetric(horizontal: 14, vertical: 10)
+                      : EdgeInsets.zero,
                   decoration: BoxDecoration(
-                    color: isFailed
-                        ? AppColors.error.withValues(alpha: 0.08)
-                        : (isMine ? AppColors.bubbleMine : AppColors.bubbleOther),
+                    color: _needsPadding
+                        ? (isFailed
+                            ? AppColors.error.withValues(alpha: 0.08)
+                            : (isMine ? AppColors.bubbleMine : AppColors.bubbleOther))
+                        : Colors.transparent,
                     borderRadius: BorderRadius.only(
                       topLeft: const Radius.circular(18),
                       topRight: const Radius.circular(18),
@@ -78,13 +86,15 @@ class MessageBubble extends StatelessWidget {
                     border: isFailed
                         ? Border.all(color: AppColors.error.withValues(alpha: 0.4), width: 1)
                         : null,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 4,
-                        offset: const Offset(0, 1),
-                      ),
-                    ],
+                    boxShadow: _needsPadding
+                        ? [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.04),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
+                          ]
+                        : null,
                   ),
                   child: _buildContent(context),
                 ),
@@ -176,12 +186,19 @@ class MessageBubble extends StatelessWidget {
     }
   }
 
+  BorderRadius get _bubbleRadius => BorderRadius.only(
+        topLeft: const Radius.circular(18),
+        topRight: const Radius.circular(18),
+        bottomLeft: Radius.circular(isMine ? 18 : 4),
+        bottomRight: Radius.circular(isMine ? 4 : 18),
+      );
+
   Widget _buildImageBubble(String url) {
     if (url.isEmpty) {
       return _buildBrokenImage();
     }
     return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: _bubbleRadius,
       child: CachedNetworkImage(
         imageUrl: url,
         width: 220,
@@ -203,29 +220,29 @@ class MessageBubble extends StatelessWidget {
   }
 
   Widget _buildVideoBubble(String url) {
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        Container(
-          width: 220,
-          height: 140,
-          decoration: BoxDecoration(
+    return ClipRRect(
+      borderRadius: _bubbleRadius,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: 220,
+            height: 140,
             color: Colors.black87,
-            borderRadius: BorderRadius.circular(10),
+            child: const Icon(Icons.videocam_rounded, color: Colors.white24, size: 52),
           ),
-          child: const Icon(Icons.videocam_rounded, color: Colors.white38, size: 48),
-        ),
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: Colors.black54,
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white54, width: 2),
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: Colors.black54,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white70, width: 2),
+            ),
+            child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 32),
           ),
-          child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 30),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
