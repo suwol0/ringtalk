@@ -221,13 +221,20 @@ class ChatRoomNotifier extends StateNotifier<ChatRoomState> {
 
   // ─── 메시지 전송 ─────────────────────────────────────────────
 
-  Future<void> sendMessage(String content) async {
-    if (content.trim().isEmpty) return;
+  Future<void> sendMessage(String content, {String type = 'text'}) async {
+    final trimmed = type == 'text' ? content.trim() : content;
+    if (trimmed.isEmpty) return;
 
     final clientMessageId = const Uuid().v4();
     final now = DateTime.now();
     final myUserId = await AuthStorage.getUserId();
     if (!mounted) return;
+
+    final msgType = type == 'image'
+        ? MessageType.image
+        : type == 'file'
+            ? MessageType.file
+            : MessageType.text;
 
     if (myUserId != null) {
       state = state.copyWith(
@@ -237,8 +244,8 @@ class ChatRoomNotifier extends StateNotifier<ChatRoomState> {
             id: clientMessageId,
             roomId: roomId,
             senderId: myUserId,
-            type: MessageType.text,
-            content: content.trim(),
+            type: msgType,
+            content: trimmed,
             status: MessageStatus.sending,
             readBy: [],
             isDeleted: false,
@@ -260,11 +267,11 @@ class ChatRoomNotifier extends StateNotifier<ChatRoomState> {
     socket.emit(WsEvents.messageSend, {
       'roomId': roomId,
       'clientMessageId': clientMessageId,
-      'content': content.trim(),
-      'type': 'text',
+      'content': trimmed,
+      'type': type,
     });
 
-    _startSendTimer(clientMessageId, content.trim());
+    _startSendTimer(clientMessageId, trimmed);
   }
 
   Future<void> retryMessage(String clientTempId) async {
