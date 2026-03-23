@@ -26,7 +26,7 @@ class EmptyFriendsView extends StatelessWidget {
             Container(
               width: 88,
               height: 88,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 shape: BoxShape.circle,
                 color: AppColors.primarySurface,
               ),

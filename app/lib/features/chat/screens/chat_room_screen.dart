@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/data/upload_repository.dart';
 import '../../../core/models/chat_model.dart';
 import '../../../core/storage/auth_storage.dart';
 import '../../../core/theme/app_colors.dart';
@@ -28,6 +29,7 @@ class ChatRoomScreen extends ConsumerStatefulWidget {
 class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
   String? _myUserId;
   final _scrollController = ScrollController();
+  bool _isUploading = false;
 
   @override
   void initState() {
@@ -50,6 +52,37 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
 
   void _retry(String clientTempId) {
     ref.read(chatRoomProvider(widget.roomId).notifier).retryMessage(clientTempId);
+  }
+
+  Future<void> _onAttachment(AttachmentFile file) async {
+    if (_isUploading) return;
+    setState(() => _isUploading = true);
+
+    try {
+      final result = await UploadRepository.uploadBytes(
+        bytes: file.bytes,
+        fileName: file.fileName,
+        contentType: file.contentType,
+      );
+
+      // 이미지/동영상이면 image 타입, 그 외 file 타입으로 전송
+      final messageType = UploadRepository.isImage(file.contentType) ? 'image' : 'file';
+      ref.read(chatRoomProvider(widget.roomId).notifier).sendMessage(
+            result.fileUrl,
+            type: messageType,
+          );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('파일 업로드에 실패했어요: ${e.toString()}'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
+    }
   }
 
   /// 스크롤이 하단에 있는지 여부 (reverse: true이므로 offset 0이 최하단)
@@ -104,7 +137,17 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
           child: Column(
             children: [
               Expanded(child: _buildBody(state, myUserId)),
-              ChatInputBar(onSend: _send, enabled: _myUserId != null),
+              if (_isUploading)
+                const LinearProgressIndicator(
+                  backgroundColor: AppColors.surfaceSubtle,
+                  color: AppColors.primary,
+                  minHeight: 2,
+                ),
+              ChatInputBar(
+                onSend: _send,
+                onAttachment: _onAttachment,
+                enabled: _myUserId != null && !_isUploading,
+              ),
             ],
           ),
         ),
