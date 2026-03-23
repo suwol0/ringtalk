@@ -6,6 +6,7 @@ import '../../../../core/models/chat_model.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/date_utils.dart' as date_utils;
 import '../../../../core/utils/responsive.dart';
+import 'image_viewer_page.dart';
 
 /// 메시지 말풍선 위젯
 class MessageBubble extends StatelessWidget {
@@ -197,24 +198,78 @@ class MessageBubble extends StatelessWidget {
     if (url.isEmpty) {
       return _buildBrokenImage();
     }
-    return ClipRRect(
-      borderRadius: _bubbleRadius,
-      child: CachedNetworkImage(
-        imageUrl: url,
-        width: 220,
-        fit: BoxFit.cover,
-        placeholder: (_, __) => Container(
-          width: 220,
-          height: 160,
-          color: AppColors.surfaceSubtle,
-          child: const Center(
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: AppColors.primary,
+
+    final heroTag = 'img-${message.id}';
+    final caption = showTime
+        ? date_utils.formatMessageTime(message.createdAt)
+        : null;
+
+    return Builder(
+      builder: (ctx) => GestureDetector(
+        onTap: () => Navigator.of(ctx).push(
+          ImageViewerPage.route(
+            imageUrl: url,
+            heroTag: heroTag,
+            caption: caption,
+          ),
+        ),
+        child: ClipRRect(
+            borderRadius: _bubbleRadius,
+            child: Stack(
+              children: [
+                Hero(
+                  tag: heroTag,
+                  child: CachedNetworkImage(
+                    imageUrl: url,
+                    width: 220,
+                    fit: BoxFit.cover,
+                    placeholder: (_, __) => Container(
+                      width: 220,
+                      height: 160,
+                      color: AppColors.surfaceSubtle,
+                      child: const Center(
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                    errorWidget: (_, __, ___) => _buildBrokenImage(),
+                  ),
+                ),
+                // 시간/상태 오버레이 (이미지 우하단)
+                if (showTime || showStatus)
+                  Positioned(
+                    right: 8,
+                    bottom: 6,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.black45,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (showTime)
+                            Text(
+                              date_utils.formatMessageTime(message.createdAt),
+                              style: const TextStyle(
+                                  color: Colors.white, fontSize: 10),
+                            ),
+                          if (showStatus && isMine) ...[
+                            if (showTime) const SizedBox(width: 3),
+                            _StatusIcon(status: message.status),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
         ),
-        errorWidget: (_, __, ___) => _buildBrokenImage(),
       ),
     );
   }
