@@ -95,8 +95,8 @@ class _ImageViewerPageState extends State<ImageViewerPage>
       final x = -position.dx * 2;
       final y = -position.dy * 2;
       _transformationController.value = Matrix4.identity()
-        ..translate(x, y)
-        ..scale(3.0);
+        ..translateByDouble(x, y, 0.0, 1.0)
+        ..scaleByDouble(3.0, 3.0, 1.0, 1.0);
     }
   }
 
