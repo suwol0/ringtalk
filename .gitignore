@@ -37,6 +37,11 @@ Thumbs.db
 .vscode/settings.json
 .idea
 
+# Flutter — 자동 생성 도구 캐시 (머신별로 다름, 커밋 불필요)
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+
 # Flutter (Android 서명 키 — 절대 커밋 금지)
 *.jks
 *.keystore
